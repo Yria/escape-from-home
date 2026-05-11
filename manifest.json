@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Escape From Home",
+  "version": "0.0.1",
+  "description": "방탈출 자동 예약 크롬 익스텐션",
+  "action": {},
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "notifications",
+    "alarms",
+    "scripting",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://zerohongdae.com/*",
+    "https://next-edition.co.kr/*",
+    "https://keyescape.co.kr/*",
+    "https://www.keyescape.com/*",
+    "https://beatphobia.co.kr/*"
+  ],
+  "icons": {
+    "16": "favicon.svg",
+    "48": "favicon.svg",
+    "128": "favicon.svg"
+  }
+}
