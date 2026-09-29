@@ -512,7 +512,19 @@ The changes are staged but not committed.
 
 **Prompt**: 여기까지 커밋후 푸쉬
 
-**Answer**: _(응답 대기 중…)_
+**Answer**: The commit is pushed to GitHub. It's `a9c60ab`, "방탈출 캘린더 Nocturne 디자인 적용 및 소모임 파싱 강화". The history entry #23 went into the same commit.
+
+- **Scope**: 120 files changed. That's more than this conversation's work. It also includes the monorepo move, the extension, the new somoim package and `deploy-calendar.yml`, which were already staged, since the only earlier commit was "first commit".
+- **Deploy**: the push started the GitHub Pages workflow ("Deploy calendar"). It was still running when I last checked, so I don't know yet whether it succeeded.
+
+**⚠️ The deployed site won't have live data.** GitHub Pages only serves static files, so the setup from earlier (collect fresh data on every request) can't run there. The workflow collects the board once at build time, so the Pages site shows data as of that deploy. The refresh button can't fetch new data either, because Somoim's API blocks direct calls from the browser (CORS).
+
+To always show the latest data, you'd need one of these:
+1. **Run a server**: deploy `server.ts` to a Node host such as Render, Fly.io or Railway. Every visit collects fresh data, which is the current code as it is.
+2. **Keep Pages and add a small proxy**: a Cloudflare Worker (free) collects the data, and the Pages site fetches from it. The data stays fresh.
+3. **Keep Pages and rebuild on a schedule**: add a cron trigger to the workflow, for example every 10 minutes. Data is at most that many minutes old. This is the least work, but it isn't real-time.
+
+Which one should I set up?
 
 ---
 
@@ -546,3 +558,240 @@ GitHub Pages 주소는 `https://<계정명>.github.io/<레포명>/` 형태로 �
 - 참여자 이름(members) 파싱: 인원 표기 바로 뒤의 이름 목록
 - 소모임에는 글 하나로 가는 링크가 없어서, 모바일에서는 /m/deeplink/{gid}로 앱의 모임을 열도록 함
 - 리뷰 워크플로우로 찾은 시트 백드롭·포커스·이미지 대체·dvh 문제 수정
+
+## #23
+
+**Prompt**: 서버가 필요해? 왜?
+
+**Answer**: Because of browser security rules. A web page can't read data straight from Somoim, so something outside the browser has to fetch it for the page.
+
+**Why the browser can't fetch it itself**
+- When a page calls another site's API, the browser only lets the page read the response if that site explicitly allows it with a CORS header (`Access-Control-Allow-Origin`).
+- I checked Somoim's `/api/articles` earlier in this conversation: the response has no such header. So if our page on `yria.github.io` calls Somoim directly, the request goes out but the browser blocks the page from reading the reply.
+- The rule only applies inside browsers. Node, curl and GitHub Actions don't enforce it. That's why the dev server, `server.ts` and the build step can all collect the board fine.
+
+**So something outside the browser has to fetch it**
+1. **A server** (`server.ts` on Render, Fly.io and similar): fetches on every visit, so data is always current.
+2. **A serverless proxy** (Cloudflare Worker): technically still a server, but you only write a small function. There's nothing to run or maintain, and the free tier is enough. The Pages site can stay as it is.
+3. **Rebuild on a schedule** (GitHub Actions cron): no server at all. GitHub fetches the board every N minutes and redeploys the Pages site, so data is up to N minutes old. GitHub's scheduled runs are delayed often, so "every 5 minutes" in practice becomes roughly every 10–30 minutes.
+
+Public CORS proxies (sites that relay any request for you) also work without a server, but they're unreliable and your traffic goes through someone else's server, so I don't recommend them.
+
+**My recommendation**: if you want data to be current every time someone opens the page, go with **2, the Cloudflare Worker**. It's free, needs no server management, and keeps GitHub Pages. If being 10–30 minutes behind is fine, **3** is the least work.
+
+---
+
+## #24
+
+**Prompt**: 그럼 이걸 가능하게 하는 배포법을 찾아줘
+
+**Answer**: The deployment research is running in the background. It's comparing four groups:
+- Cloudflare Workers / Pages
+- Vercel / Netlify
+- Hosts that can run `server.ts` as it is (Render, Fly and others)
+- What our code would need to change for each
+
+I'll write up a recommendation once it finishes.
+
+---
+
+## #25
+
+**Prompt**: <task-notification>
+<task-id>w8e7gw82j</task-id>
+<tool-use-id>toolu_01BGTwBCivCLK6cGJdg218bN</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-sam-Projects-escape-from-home/6f6dd48a-c991-44ab-8a9e-1307dfbddceb/tasks/w8e7gw82j.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Research deployment options that let the calendar fetch Somoim data live on every request" completed</summary>
+<result>"# \"항상 최신판\" 배포 방법 추천 (2026-09 기준)\n\n**결론: Cloudflare Workers + Static Assets로 옮기는 게 가장 좋습니다.** 워커 하나가 `dist/`를 서빙하고, `/data/events.json` 요청만 소모임을 실시간으로 수집합니다. 무료이고 카드 등록도 필요 없으며, 프론트엔드 코드는 바꾸지 않습니다. 2순위는 Vercel Hobby(서울 리전), 3순위는 Google Cloud Run입니다.\n\n## 1. 검증 결과\n\n### 공식 문서로 다시 확인한 것\n- **Cloudflare Workers Free**\n  - 하루 100k 요청, 요청당 CPU 10ms. fetch를 기다리는 시간은 CPU 시간에 들어가지 않습니다.\n  - 가끔 10ms를 넘는 건 허용되지만, 계속 넘으면 요청이 강제 종료됩니다.\n  - 유료 플랜은 월 $5이고 CPU 기본 30초입니다.\n- **run_worker_first**\n  - 기본 동작은 정적 파일이 있으면 워커를 실행하지 않고 파일을 바로 줍니다.\n  - 그래서 `run_worker_first: [\"/data/events.json\"]`이 **필수**입니다. 배열 형식이 공식 예제에 있습니다.\n- **Vercel Hobby**\n  - 월 1M 호출, Active CPU 4시간, 함수 실행 최대 300초.\n  - 함수 리전은 1개만 가능하지만 어디든 고를 수 있습니다(`icn1` 서울 가능).\n  - 한도를 넘으면 요금이 나가지 않고 팀이 일시정지됩니다. 롤링 30일 기준입니다.\n- **레포 확인**\n  - `buildSnapshot()`은 이미 `timeoutMs`와 `signal` 옵션을 받습니다 (`packages/somoim/src/snapshot.ts:174`).\n  - 현재 워크플로는 `somoim sync` → `pnpm build` → GitHub Pages 배포 순서입니다.\n  - `public/data/events.json`이 빌드 시 `dist/data/events.json`에 복사됩니다.\n\n### 보고서끼리 맞지 않거나 근거가 약한 것\n- **CPU 측정값이 다릅니다.** 콜드 기준으로 한 보고서는 11.9ms(140개 글 fixture), 다른 보고서는 8.6ms(실제 55개 글)입니다.\n  - 실제 응답 크기는 25–34KB로, 가정했던 50–150KB보다 작습니다.\n  - 그래서 **평소에는 10ms 이내, 콜드 스타트 때만 경계선**이라고 보는 게 맞습니다.\n  - 결정적인 수치는 아니므로 배포 후 로그에서 `exceededCpu`가 나오는지 확인해야 합니다.\n- **Netlify 함수 타임아웃이 보고서마다 다릅니다(60초 vs 10초).** 다시 확인하지 않았습니다. 순위에서 빠져서 영향은 없습니다.\n- **최악의 경우 응답 시간이 30초입니다.** 페이지당 10초 타임아웃 × 3페이지입니다. 모든 플랫폼에서 `timeoutMs: 4000`에 전체 `signal: AbortSignal.timeout(8000)`을 거는 게 좋습니다. 그래야 플랫폼이 끊기 전에 fallback으로 넘어갑니다.\n- **확인이 불가능한 것**\n  - Workers Builds 무료 빌드 시간(월 3,000분)은 서드파티 출처뿐이라 GitHub Actions 배포를 권합니다.\n  - 소모임이 데이터센터 IP를 차단하는지는 **어느 플랫폼이든 배포 전에 알 수 없습니다.**\n- **Vercel의 TS 번들링이 가장 큰 미지수입니다.** somoim 패키지가 `.ts` 소스와 `.ts` 확장자 import를 그대로 내보내고, calendar tsconfig는 project references를 씁니다. `@vercel/node`가 이를 처리하는지는 `vercel build`로 직접 확인해야 합니다.\n\n## 2. 추천 순위\n\n### 1순위: Cloudflare Workers + Static Assets\n**왜**\n- 페이지를 열 때마다 워커 호출은 1회뿐이고, 나머지 정적 요청은 무료·무제한입니다.\n- wrangler(esbuild)가 워크스페이스의 TS 소스를 그대로 번들합니다. `src/index.ts` 쪽 코드에는 Node API가 없어서 `nodejs_compat`도 필요 없습니다.\n- 같은 도메인에서 서빙하니 `useSnapshot.ts`를 바꿀 필요가 없습니다.\n\n**추가하거나 바꿀 파일**\n- `playground/calendar/wrangler.jsonc`\n  - `main: ./worker/index.ts`, `compatibility_date: 2026-09-xx`\n  - `assets: { directory: ./dist, binding: ASSETS, not_found_handling: single-page-application, run_worker_first: [\"/data/events.json\"] }`\n  - `observability.enabled: true`, `placement.mode: smart` (소모임 서버가 AWS 도쿄에 있어서, 실행 위치를 그쪽 가까이로 옮기려는 설정)\n- `playground/calendar/worker/index.ts`\n  - `/data/events.json` 요청이면 `buildSnapshot({ timeoutMs: 4000, signal: AbortSignal.timeout(8000) })`를 호출합니다.\n  - 동시에 들어온 요청은 진행 중인 수집 하나를 공유합니다.\n  - 응답 헤더는 `no-store`입니다.\n  - 실패하면 순서대로 fallback합니다: 마지막 성공 결과(`X-Somoim-Fallback: last`) → `env.ASSETS.fetch`로 빌드 때 만든 파일(`X-Somoim-Fallback: file`) → 502.\n  - 그 외 경로는 전부 `env.ASSETS.fetch(req)`로 넘깁니다.\n  - import는 `@escape-from-home/somoim`의 기본 export만 씁니다. `/node`는 금지입니다.\n- (권장) `playground/calendar/vite/snapshotHandler.ts`를 런타임과 무관한 코어로 분리합니다. 입력 `collect`/`loadFallback`, 출력은 Web 표준 `Response`입니다. 여기에 Node 어댑터(dev 미들웨어, `server.ts`)와 Worker 어댑터를 얹으면 dev와 prod가 같은 로직을 씁니다.\n- `playground/calendar/package.json`: devDependencies에 `wrangler`(4.20 이상), `@cloudflare/workers-types`를 추가합니다.\n\n**배포 (GitHub Actions)**\n- `.github/workflows/deploy-calendar.yml`에서 checkout, pnpm, node 26, install, `somoim sync`, build 단계는 그대로 둡니다.\n- `upload-pages-artifact`, `deploy-pages`, `pages`/`id-token` 권한은 지우고 다음으로 바꿉니다.\n  - `cloudflare/wrangler-action@v4`\n  - `apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}`\n  - `accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}`\n  - `workingDirectory: playground/calendar`\n  - `command: deploy`\n- 토큰은 \"Edit Cloudflare Workers\" 템플릿으로 만듭니다.\n- 결과 주소는 `https://escape-calendar.&lt;sub&gt;.workers.dev`입니다.\n\n**기존 GitHub Pages는?** 워크플로를 위처럼 교체하면 이후로 갱신되지 않습니다. 저장소 설정에서 Pages를 끄거나, 옛 URL에 이동 안내만 남겨 두면 됩니다. `somoim sync` 단계는 fallback 파일을 최신으로 유지하는 용도로 계속 둡니다.\n\n**남는 위험**\n- CPU 10ms 초과(Error 1102): 월 $5 유료 플랜으로 해결됩니다.\n- 한도 카운터가 매일 09:00 KST(00:00 UTC)에 초기화되고, 넘으면 그날은 바로 차단됩니다. 개인 사용량에선 문제없습니다.\n- 페이지를 열 때마다 데이터가 뜨기까지 약 0.5–1초 걸립니다. 기존 로딩 UI로 충분합니다.\n\n**변형: 1순위를 그대로 두고 github.io URL만 유지하고 싶다면**\n- 워커는 데이터만 담당(`ACAO: https://yria.github.io`)하고, 프론트는 `VITE_DATA_URL` 환경변수로 워커 주소를 가리킵니다.\n- 배포 대상이 둘이 되고 CORS 설정이 추가됩니다. URL 유지가 꼭 필요할 때만 권합니다.\n\n### 2순위: Vercel Hobby, 함수 리전 `icn1`(서울)\n**왜**\n- 소모임 서버와 가까운 서울에서 돌고, 실행 시간은 최대 300초입니다.\n- 순수 CPU 시간 4시간/월은 이 용도에 넉넉합니다.\n- 카드가 필요 없습니다. Yria는 개인 계정이라 Hobby로 연결할 수 있습니다.\n\n**추가하거나 바꿀 파일**\n- `playground/calendar/api/events.ts`: 1순위와 같은 코어를 쓰는 Web 핸들러입니다.\n- `playground/calendar/vercel.json`: `regions: [\"icn1\"]`, 그리고 rewrite `/data/events.json` → `/api/events`.\n- **fallback 파일 이름 변경이 필수입니다.** 예: `public/data/events.fallback.json`. Vercel은 rewrite보다 정적 파일을 먼저 확인해서, 이름이 같으면 함수가 절대 실행되지 않습니다. `somoimData.ts`의 출력 경로도 같이 바꿔야 합니다.\n- `server.ts`가 Vercel의 zero-config 서버 진입점으로 잡힐 수 있습니다. 문제가 되면 `scripts/serve.ts`로 옮깁니다.\n\n**배포 (GitHub 연동)**\n- Vercel에서 저장소를 import하고 Root Directory를 `playground/calendar`, 프리셋은 Vite, Node는 24.x로 설정합니다. Node 26은 제공되지 않습니다.\n- 먼저 로컬에서 `vercel build`로 번들이 되는지 확인합니다.\n  - 실패하면 esbuild로 함수를 미리 번들해서 Build Output API 형식으로 내보냅니다 (`.vercel/output/functions/...func`, runtime `nodejs24.x`).\n\n**기존 GitHub Pages는?** Vercel이 git 연동으로 직접 배포하므로 `deploy-calendar.yml`은 삭제하거나 `workflow_dispatch` 전용으로 바꿉니다.\n\n**남는 위험**\n- TS 번들링 실패 가능성이 가장 큽니다.\n- Hobby는 런타임 로그를 1시간만 보관합니다.\n- 한도를 넘으면 사이트가 정지되고, 한도 아래로 내려와도 정지가 풀리지 않았다는 포럼 사례가 있습니다.\n- 비상업적 용도로만 쓸 수 있습니다.\n\n### 3순위: Google Cloud Run (서울 `asia-northeast3`, 최소 인스턴스 0)\n**왜**\n- 기존 `server.ts`가 **코드 수정 없이** 돌아갑니다(`PORT` 환경변수 사용, 모든 인터페이스 바인딩).\n- 한국 리전이 있고 콜드 스타트는 몇 초 수준입니다.\n- 개인 트래픽이면 상시 무료 구간 안에서 사실상 $0입니다.\n\n**추가할 파일**\n- 루트 `Dockerfile`\n  - `node:26-slim` 기반, `npm i -g pnpm@11.22.0`(Node 25부터 Corepack이 빠짐).\n  - 레포 전체를 복사한 뒤 install → `somoim sync` → build.\n  - `WORKDIR playground/calendar`, `CMD [\"node\",\"server.ts\"]`.\n  - `pnpm deploy`/prod 전용 복사는 쓰지 마세요. Node는 `node_modules` 안의 `.ts`를 타입 스트리핑하지 않습니다.\n- `.dockerignore`\n\n**배포 (GitHub Actions)**\n- `google-github-actions/auth`로 인증한 뒤 `deploy-cloudrun`으로 `--source . --region asia-northeast3 --allow-unauthenticated --max-instances 2` 배포합니다.\n- Pages 관련 job은 교체합니다.\n\n**남는 위험**\n- 카드가 연결된 결제 계정이 필요합니다. 예산 알림을 꼭 설정하세요.\n- GCP 프로젝트, IAM, Artifact Registry 정리 등 운영 부담이 앞의 두 방법보다 큽니다.\n\n**순위에서 뺀 것**\n- **Render**: 15분 유휴 후 첫 요청이 약 1분 걸립니다.\n- **Netlify**: 무료 플랜은 리전이 오하이오로 고정되고, 크레딧 300 중 production 배포 1회당 15를 씁니다.\n- **Fly / Railway**: 무료가 아닙니다.\n- **Koyeb**: 무료 리전이 EU/미국뿐이고 카드 등록 시 $29를 임시 결제(홀드)합니다.\n- **Deno Deploy**: Node가 아닌 Deno 런타임이고 아시아 리전이 없습니다.\n\n## 3. 공통 위험: 소모임이 데이터센터 IP를 차단할 경우\n- **왜 모르는가**: 소모임 서버는 AWS 도쿄의 Next.js 앱이고 WAF 헤더는 보이지 않습니다. 다만 배포 전에는 확인할 방법이 없습니다. Cloudflare는 외부 요청마다 `CF-Worker` 헤더를 붙이기 때문에 이걸로 걸러낼 수 있습니다.\n- **감지 방법**\n  - 배포 직후 `curl -i https://&lt;host&gt;/data/events.json`으로 `X-Somoim-Fallback` 헤더가 **없는지**, `generatedAt`이 방금 시각인지 확인합니다.\n  - catch 블록에서 상류 HTTP 상태를 로그로 남깁니다. 403/429, HTML 챌린지 페이지(JSON 파싱 실패), 타임아웃이 차단 신호입니다.\n  - 로그는 `wrangler tail`, Workers Logs, Vercel 로그에서 봅니다.\n- **fallback**\n  - 당장은 빌드 때 만든 스냅샷(매 push마다 `sync`로 갱신)을 서빙하고, 헤더로 fallback임을 표시합니다.\n  - 차단이 확인되면 다른 IP 대역의 플랫폼으로 데이터 경로만 옮깁니다. 예: Cloudflare에서 막히면 Vercel `icn1`이나 Cloud Run으로.\n  - 최후 수단은 GitHub Actions cron(예: 10분마다) 재배포인데, 이는 \"항상 최신판\"을 포기하고 준실시간으로 타협하는 것입니다.\n\n## 출처\n- [Cloudflare Workers limits](https://developers.cloudflare.com/workers/platform/limits/) · [Pricing](https://developers.cloudflare.com/workers/platform/pricing/) · [Static Assets routing](https://developers.cloudflare.com/workers/static-assets/) · [run_worker_first](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/) · [SPA shell 예제](https://developers.cloudflare.com/workers/examples/spa-shell/) · [wrangler-action](https://github.com/cloudflare/wrangler-action)\n- [Vercel Hobby](ht
+... (truncated 685 chars, full result in /private/tmp/claude-501/-Users-sam-Projects-escape-from-home/6f6dd48a-c991-44ab-8a9e-1307dfbddceb/tasks/w8e7gw82j.output)</result>
+<diagnostics>Per-agent results: /Users/sam/.claude-instances/af43c37c/projects/-Users-sam-Projects-escape-from-home/3b1b48c9-9348-45a3-b73c-35e5c8132383/subagents/workflows/wf_341a44ca-a20/journal.jsonl — one {"type":"result",...} line per completed agent with its full return value.
+If the result above is empty or unexpected, Read this file BEFORE diagnosing — do not assume agents returned non-empty results.
+To re-run with edited post-processing: Workflow({scriptPath: '/Users/sam/.claude-instances/af43c37c/projects/-Users-sam-Projects-escape-from-home/3b1b48c9-9348-45a3-b73c-35e5c8132383/workflows/scripts/live-deploy-research-wf_341a44ca-a20.js', resumeFromRunId: 'wf_341a44ca-a20'}) — agents whose (prompt, opts) are unchanged replay from cache.</diagnostics>
+<usage><agent_count>5</agent_count><agents_done>5</agents_done><agents_error>0</agents_error><agents_skipped>0</agents_skipped><agents_empty_result>0</agents_empty_result><subagent_tokens>608430</subagent_tokens><tool_uses>75</tool_uses><duration_ms>433099</duration_ms></usage>
+</task-notification>
+
+**Answer**: I compared the platforms against current (2026) official docs. The best fit is **Cloudflare Workers + Static Assets**: it's free, needs no card, and needs no changes to the frontend code.
+
+## Recommendation: Cloudflare Workers + Static Assets
+
+**How it works**: one Worker serves the built files (`dist/`). Only requests for `/data/events.json` collect Somoim's board in real time.
+
+**Why this one**
+- The free tier allows 100k requests a day. Each page open calls the Worker once; the other static files are free and unlimited.
+- Time spent waiting on Somoim's reply doesn't count toward the free CPU limit.
+- The page and the data come from the same address, so there are no CORS issues and the frontend (`useSnapshot`) doesn't change.
+- wrangler bundles the somoim package's TS source as it is. The code has no Node-only APIs, so it runs without extra settings.
+
+**What I'd add or change**
+- **`playground/calendar/wrangler.jsonc`**: must set `run_worker_first: ["/data/events.json"]`. Without it, Cloudflare serves the static file with that name directly and the Worker never runs.
+- **`playground/calendar/worker/index.ts`**: collects on each request and responds with `no-store`. If collection fails, it falls back to the last successful result, then to the snapshot made at build time.
+- **Shared handler**: split the one in `vite/snapshotHandler.ts` so dev, `server.ts` and the Worker all use the same logic.
+- **Timeouts**: shorten to 4 seconds per page and 8 seconds overall. The current worst case is 30 seconds (10 seconds × 3 pages).
+- **`deploy-calendar.yml`**: swap the GitHub Pages deploy step for `cloudflare/wrangler-action`.
+
+**Address**: it moves from `yria.github.io/escape-from-home` to `https://<이름>.<서브도메인>.workers.dev`. If you need to keep the old address, there's a variant: the Pages site stays and only the data comes from the Worker. That means two deploy targets and extra CORS setup.
+
+**Risks**
+- **CPU limit**: the free plan allows 10ms of CPU per request, and measurements were 8.6–11.9ms. That's normally within the limit but close on a cold start. I'd check the logs after deploying, and if it's exceeded, the $5/month plan fixes it.
+- **Somoim blocking datacenter IPs**: this can't be known before deploying, on any platform. Right after deploying, I'd confirm that the response has no `X-Somoim-Fallback` header and that `generatedAt` is the current time. If it's blocked, only the data would move to another platform.
+
+## Alternatives
+- **2nd: Vercel Hobby (Seoul region)**. It runs close to Somoim's server, but it's the least certain whether our TS package bundles as is. It's also for non-commercial use only.
+- **3rd: Google Cloud Run (Seoul)**. `server.ts` runs with no code changes, but it needs a card on a billing account and has the most setup overhead.
+
+Ruled out:
+- **Render**: the first request after going idle takes about a minute.
+- **Netlify**: the free plan's region is fixed to the US.
+- **Fly and Railway**: not free.
+- **Koyeb and Deno Deploy**: no Asian region, or not Node.
+
+## Next step
+I can write the code for option 1 now: the Worker, the wrangler config, the shared handler and the deploy workflow. I'll first check it runs locally with `wrangler dev` and actually collects data. Only you can do these two steps:
+1. Create a Cloudflare account (free).
+2. Create an API token with the "Edit Cloudflare Workers" template, and add it to the GitHub repo secrets along with your Account ID as `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+Should I go ahead with option 1? Also, do you need to keep the current `github.io` address?
+
+Sources: [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) · [Pricing](https://developers.cloudflare.com/workers/platform/pricing/) · [Static Assets routing](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/) · [wrangler-action](https://github.com/cloudflare/wrangler-action)
+
+---
+
+## #26
+
+**Prompt**: 한글로 설명해봐
+
+**Answer**: 쉬운 말로 다시 정리하면 이렇습니다.
+
+## 지금 문제
+- 지금 사이트는 **파일만 올려 두는 곳**(GitHub Pages)에 있습니다. 그래서 들어올 때마다 소모임 게시판을 새로 가져오는 일을 해 줄 곳이 없습니다.
+- 브라우저가 소모임에서 직접 가져오는 것도 안 됩니다. 소모임이 **다른 사이트에서 자기 글을 읽어 가는 것을 허락하지 않기** 때문에 브라우저가 막습니다.
+- 그래서 **사이트 대신 게시판을 가져와 줄 작은 프로그램**을 인터넷 어딘가에 올려 둬야 합니다.
+
+## 추천: 클라우드플레어 워커
+클라우드플레어는 **작은 프로그램을 무료로 인터넷에 올려 두고 돌려 주는 서비스**입니다. 컴퓨터를 따로 켜 두거나 관리할 필요가 없습니다.
+
+**동작 방식**
+1. 누가 캘린더에 들어옵니다.
+2. 화면(디자인, 버튼 같은 파일)은 클라우드플레어가 바로 보내 줍니다.
+3. 일정 데이터를 달라는 요청이 오면, 워커가 **그 순간 소모임 게시판을 가져와** 정리해서 보내 줍니다.
+4. 그래서 들어올 때마다 항상 최신 일정이 보입니다.
+
+**좋은 점**
+- **무료**이고 카드 등록도 필요 없습니다. 하루 10만 번까지 가능해서 개인이 쓰기엔 충분합니다.
+- 화면 코드는 **거의 그대로** 둬도 됩니다. 게시판 가져오는 코드도 지금 것을 그대로 씁니다.
+- 가져오기에 실패하면 **바로 전에 가져온 일정**, 그것도 없으면 **배포할 때 만들어 둔 일정**을 대신 보여 줍니다. 빈 화면이 뜨지 않습니다.
+
+**달라지는 점**
+- 주소가 바뀝니다. 지금은 `yria.github.io/escape-from-home`이고, 바뀌면 `이름.workers.dev` 같은 주소가 됩니다. 지금 주소를 꼭 써야 한다면 방법은 있지만, 올리는 곳이 두 군데로 늘어나 조금 복잡해집니다.
+
+**걱정되는 점**
+- **무료 한도 안에 들어가는지**: 무료 플랜은 요청 하나를 처리할 때 계산을 아주 짧게만 하도록 제한합니다. 재 보니 평소엔 들어오고, 처음 켜질 때만 한도에 딱 걸칠 수 있는 정도였습니다. 올린 뒤 기록을 보고, 넘치면 월 5달러 요금제로 바꾸면 됩니다.
+- **소모임이 막을 수도 있음**: 소모임이 이런 서비스에서 오는 접속을 막는지는 **올려 봐야 알 수 있습니다**. 올린 직후 진짜 새 데이터가 오는지 확인하겠습니다. 막혀 있으면 다른 서비스로 옮기면 됩니다.
+
+## 다른 방법 (차선책)
+- **버셀(Vercel)**: 역시 무료이고 서울에서 돌아서 소모임과 가깝습니다. 다만 우리 코드가 그대로 올라갈지 확실하지 않고, 돈 버는 용도로는 쓸 수 없습니다.
+- **구글 클라우드 런**: 지금 만들어 둔 서버 코드를 고치지 않고 그대로 올릴 수 있습니다. 다만 카드 등록이 필요하고 설정할 것이 가장 많습니다.
+- 그 밖의 서비스는 오래 안 쓰면 잠들어서 첫 접속이 1분쯤 걸리거나, 무료가 아니거나, 서버가 한국에서 너무 멀어서 뺐습니다.
+
+## 진행하려면
+제가 할 일:
+- 워커 프로그램과 설정 파일을 만들고, 제 컴퓨터에서 먼저 돌려서 게시판을 잘 가져오는지 확인합니다.
+- GitHub에 올릴 때마다 자동으로 클라우드플레어에 배포되게 바꿉니다.
+
+직접 해 주셔야 할 일 (계정이 필요해서 제가 할 수 없습니다):
+1. 클라우드플레어 무료 가입
+2. 클라우드플레어에서 **배포용 열쇠(API 토큰)**를 만들어 GitHub 저장소 설정에 넣기. 방법은 그때 순서대로 알려 드리겠습니다.
+
+이대로 진행할까요? 그리고 지금 주소(`github.io`)를 꼭 유지해야 하나요?
+
+---
+
+## #27
+
+**Prompt**: 무료이고 제일 만만한게 뭐야
+
+**Answer**: 무료 중에서 제일 만만한 건 두 가지입니다. "항상 최신"이 꼭 필요한지에 따라 고르면 됩니다.
+
+## 1. 제일 만만함: 지금 그대로 두고 자동으로 자주 다시 올리기
+- **할 일**: 제가 배포 설정 파일(`deploy-calendar.yml`)에 몇 줄만 넣으면 끝입니다. 새로 가입할 곳도 없고 주소도 그대로입니다.
+- **방식**: GitHub가 정해진 간격(예: 10분)마다 게시판을 새로 가져와 사이트를 다시 올립니다.
+- **단점**: **실시간이 아닙니다.** GitHub의 예약 실행은 자주 밀려서 실제로는 10~30분쯤 늦은 데이터일 수 있습니다. 새로고침 버튼을 눌러도 그 사이에는 새 데이터가 안 나옵니다.
+
+## 2. 실시간 중에 제일 만만함: 클라우드플레어 워커
+- **할 일**: 클라우드플레어 가입, 그리고 배포용 열쇠 하나를 GitHub에 넣기. 나머지 코드는 제가 다 합니다.
+- **장점**: 들어올 때마다 **진짜 최신**입니다. 카드 등록 없이 무료입니다.
+- **단점**: 주소가 `...workers.dev`로 바뀌고, 소모임이 클라우드플레어 접속을 막는지는 올려 봐야 압니다.
+
+## 정리
+- "몇십 분 늦어도 괜찮다" → **1번**. 지금 바로 해 드릴 수 있습니다.
+- "처음 말한 대로 항상 최신이어야 한다" → **2번**.
+
+처음에 항상 최신판이어야 한다고 하셨으니 **2번을 추천**합니다. 어느 쪽으로 할까요?
+
+---
+
+## #28
+
+**Prompt**: 깃헙으로 하면 서버필요없어?
+
+**Answer**: 네, GitHub만 쓰면 **서버는 필요 없습니다.** 대신 **실시간은 안 됩니다.**
+
+**왜 서버가 필요 없는지**
+- GitHub에는 **정해진 시간마다 코드를 대신 돌려 주는 기능**(GitHub Actions)이 있습니다.
+- 이 기능이 예를 들어 10분마다 게시판을 가져와 일정 파일을 새로 만들고, 사이트를 다시 올립니다.
+- 방문자는 그렇게 만들어 둔 파일을 읽기만 합니다. 그래서 따로 켜 둘 서버가 없습니다.
+
+**왜 실시간은 안 되는지**
+- GitHub Pages는 **파일만 보여 주는 곳**이라, 누가 들어오는 순간에 코드를 실행할 수 없습니다.
+- 그래서 데이터는 "마지막으로 다시 올린 시점"의 것입니다.
+- 예약 실행은 5분보다 짧게 잡을 수 없고, GitHub가 바쁘면 자주 밀립니다. 실제로는 **10~30분 늦은 데이터**라고 보시면 됩니다.
+
+**비용과 주의할 점**
+- 공개 저장소면 GitHub Actions는 **무료이고 횟수 제한도 없습니다.** 지금 Pages를 무료로 쓰고 있으니 공개 저장소일 가능성이 큽니다.
+- **60일 동안 저장소에 아무 변경이 없으면** GitHub가 예약 실행을 자동으로 멈춥니다. 가끔 커밋하거나, 멈추면 다시 켜 줘야 합니다.
+- 화면의 새로고침 버튼은 이 방식에서 의미가 없어집니다. 그래서 버튼을 없애고 "마지막 갱신 ○시 ○분"만 보여 주는 게 맞습니다.
+
+**정리**
+- 서버 없이, 새 가입 없이, 주소도 그대로 가려면 → **GitHub 예약 실행**
+- 들어올 때마다 진짜 최신이어야 하면 → 어떤 형태든 대신 가져와 줄 곳이 필요하고, 그중 제일 쉬운 게 **클라우드플레어 워커**
+
+GitHub 방식으로 할까요? 하신다면 몇 분 간격으로 할지(추천은 10분)도 알려 주세요.
+
+---
+
+## #29
+
+**Prompt**: 아 그럼 깃헙써도 돼. 일정은 30분단위로 가져오면 되니까. 근데 이거 주기짧으면 돈나가?
+
+**Answer**: **No, it won't cost anything.** The repo is public, and GitHub Actions is free with no usage limit for public repos. Even every 5 minutes would still be free.
+
+For reference, a private repo gets 2,000 free minutes a month. Each run takes about 45 seconds, so every 30 minutes would come to roughly 1,500 minutes a month, which also fits within the free amount. The Pages site itself is free as well.
+
+**What I changed**
+- I added a schedule to the deploy settings (`.github/workflows/deploy-calendar.yml`) so it collects the board and redeploys **every 30 minutes**.
+- It runs at **7 and 37 minutes past each hour** instead of on the hour and half hour. Those times are when everyone's scheduled runs pile up and get delayed the most.
+
+**Worth knowing**
+- **How old the data can be**: up to 30 minutes plus however long GitHub delays the run. Usually it's within 30–40 minutes.
+- **Auto-stop after 60 days**: if the repo has no activity for 60 days, GitHub pauses scheduled runs. If that happens, turn it back on from the **Actions** tab.
+- **The new schedule only starts after it's pushed to main.** The change is staged but not committed yet. Tell me if you want me to commit and push it.
+
+---
+
+## #30
+
+**Prompt**: 그럼 간격 최대한짧게하고 배포해. 크론으로 돌려서 데이터 캐싱하는거지?
+
+**Answer**: _(응답 대기 중…)_
+
+---
+
+## #30
+
+**Action**: 캘린더 배포에 5분 간격 예약 실행 추가
+
+**Answer**: GitHub Pages는 정적이라 방문할 때 수집할 수 없어서, GitHub Actions 예약 실행(cron)으로 5분마다 소모임 게시판을 다시 긁어 data/events.json으로 구워 재배포하도록 했습니다. 서버 없이 주기적으로 캐시를 갱신하는 방식입니다.
+- cron '2-59/5 * * * *': GitHub 예약 실행의 최소 간격. 정각 근처에 몰리는 걸 피하려고 2분부터 시작
+- 공개 저장소라 Actions와 Pages 모두 무료
+- 60일 동안 커밋이 없으면 예약 실행이 멈추므로 Actions 탭에서 다시 켜야 함
