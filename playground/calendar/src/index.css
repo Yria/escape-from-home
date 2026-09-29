@@ -67,7 +67,8 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-6) var(--space-6) var(--space-3);
+  /* 홈 화면 앱(iOS black-translucent)에서는 상태 표시줄 밑까지 그려지므로 그만큼 내린다 */
+  padding: calc(var(--space-6) + env(safe-area-inset-top)) var(--space-6) var(--space-3);
 }
 .cal-head__title {
   display: flex;

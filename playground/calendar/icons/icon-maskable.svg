@@ -2,7 +2,7 @@
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2741"/><stop offset="1" stop-color="#161826"/></linearGradient>
   <linearGradient id="key" gradientUnits="userSpaceOnUse" x1="0" y1="128" x2="0" y2="410"><stop offset="0" stop-color="#d2cefd"/><stop offset="1" stop-color="#968ae0"/></linearGradient>
   <radialGradient id="glow" cx="0.5" cy="0.42" r="0.5"><stop offset="0" stop-color="#9184d9" stop-opacity="0.45"/><stop offset="1" stop-color="#9184d9" stop-opacity="0"/></radialGradient>
-</defs><rect width="512" height="512" rx="112" fill="url(#bg)"/><g transform="translate(256 256) scale(1) translate(-256 -256)">
+</defs><rect width="512" height="512" fill="url(#bg)"/><g transform="translate(256 256) scale(0.72) translate(-256 -256)">
   <circle cx="256" cy="236" r="190" fill="url(#glow)"/>
   <circle cx="256" cy="206" r="78" fill="url(#key)"/>
   <path d="M214 250 H298 L326 398 Q328 410 316 410 H196 Q184 410 186 398 Z" fill="url(#key)"/>

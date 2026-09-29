@@ -949,6 +949,62 @@ Sources: [Vercel rewrites](https://vercel.com/docs/routing/rewrites) · [Functio
 
 **Prompt**: 그럼 버셀로 배포할거니까 코드수정할거 있음 수정하고 최종 커밋 푸쉬해
 
+**Answer**: The Vercel setup is committed and pushed (`480ee7c`, on main). Before pushing I confirmed the build, tests, types and lint all pass, and that Vercel's own build tool uses our function output as it is.
+
+**Changes in this commit**
+- **Node version**: set to 24 or above in `package.json`, so you don't need to set it in Vercel.
+- **GitHub Pages deploy removed**, including the 5-minute scheduled run. Now only Vercel deploys.
+- **Committed along with it**: the Vercel function, the bundling script, `vercel.json` (Seoul region), and the fallback file handling.
+
+**Next, in Vercel**
+1. On that screen, click **"Import single project"** in the **calendar** row.
+2. Enter a Project Name and leave everything else at the defaults.
+3. Click **Deploy**. It builds the code I just pushed.
+
+**After it's deployed**
+- **Send me the address.** I'll check whether data is really being collected live. If the response is marked as fallback, or the time in it is old, Somoim is blocking requests from Vercel.
+- **The old GitHub Pages site** stays up with its last deploy. To take it down completely, switch Pages off in the GitHub repo under **Settings → Pages**.
+
+---
+
+## #36
+
+**Prompt**: https://escape-from-home.vercel.app/
+
+**Answer**: The site is live at https://escape-from-home.vercel.app/, and it collects fresh board data every time it's opened. Somoim isn't blocking requests from Vercel.
+
+I requested the data twice, 3 seconds apart:
+
+| Check | Result |
+|---|---|
+| Collection time | 16:33:37, then 16:33:40, so each request collected again |
+| Fallback marker (`X-Somoim-Fallback`) | none, so it's real live data |
+| Caching | `no-store`, not cached |
+| Run location | `icn1` (Seoul) |
+| Data | 35 events and 2 undated posts, including the new fields such as participant names |
+
+I also opened the page in a browser:
+- 14 days on the calendar have events.
+- The drip effect shows on the 3 horror days.
+- The filter reads 전체 23 / 모집중 0 / 마감 5 / 공포 3.
+- No error notices and no console errors.
+
+From now on, every push to main redeploys automatically. If you don't need the old GitHub Pages address anymore, switch Pages off in the GitHub repo under **Settings → Pages**.
+
+---
+
+## #37
+
+**Prompt**: 웹앱으로 바탕화면에 추가할 수 있게 해주고 작업끝나면 커밋하고 배포해
+
+**Answer**: _(응답 대기 중…)_
+
+---
+
+## #38
+
+**Prompt**: 필터의 카운터가 월별로 되어있는데 전체로 해줘 이것도 끝나면 커밋후 배포
+
 **Answer**: _(응답 대기 중…)_
 
 ---

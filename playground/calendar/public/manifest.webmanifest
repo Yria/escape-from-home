@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "방탈출 캘린더",
+  "short_name": "방탈출",
+  "description": "방구석을 탈출하는 사람들 소모임의 벙 일정을 달력으로 모아 봅니다.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#161826",
+  "theme_color": "#161826",
+  "categories": ["lifestyle", "social"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
