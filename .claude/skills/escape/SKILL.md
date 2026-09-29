@@ -2,7 +2,7 @@
 name: escape
 description: 방탈출 예약 시스템에 새로운 업체(Provider)를 추가합니다. 업체 이름과 API 정보를 제공하면 어댑터, 매퍼, 테스트 코드를 자동 생성합니다.
 argument-hint: "[provider-id] [업체 한글 이름] [웹사이트 URL]"
-allowed-tools: Read Write Edit Grep Glob Bash(npx vitest run) Bash(npx tsc -b)
+allowed-tools: Read Write Edit Grep Glob Bash(pnpm --filter @escape-from-home/extension test) Bash(pnpm --filter @escape-from-home/extension exec tsc -b)
 ---
 
 # 새 업체 추가: $ARGUMENTS
@@ -19,7 +19,7 @@ allowed-tools: Read Write Edit Grep Glob Bash(npx vitest run) Bash(npx tsc -b)
 
 ## 생성해야 하는 파일 5개
 
-### 1. `src/providers/{provider-id}/api.ts`
+### 1. `playground/extension/src/providers/{provider-id}/api.ts`
 
 외부 API 호출 담당. 이 파일만 외부 세계와 접촉한다.
 
@@ -34,7 +34,7 @@ allowed-tools: Read Write Edit Grep Glob Bash(npx vitest run) Bash(npx tsc -b)
 
 **참고**: 기존 업체의 api.ts를 참조하되, 외부 API 필드명/형태는 업체마다 완전히 다르므로 단순 복사는 금지.
 
-### 2. `src/providers/{provider-id}/mapper.ts`
+### 2. `playground/extension/src/providers/{provider-id}/mapper.ts`
 
 외부 ↔ 내부 모델 변환 담당. 양방향 매핑 함수.
 
@@ -51,7 +51,7 @@ allowed-tools: Read Write Edit Grep Glob Bash(npx vitest run) Bash(npx tsc -b)
 - 내부 타입 import는 `../../core/types`에서
 - 외부 타입 import는 같은 폴더 `./api`에서
 
-### 3. `src/providers/{provider-id}/actions.ts`
+### 3. `playground/extension/src/providers/{provider-id}/actions.ts`
 
 페이지 폼 자동화 스크립트. 예약 페이지에서 자동으로 폼을 채우는 `PageAction[]`을 조립한다.
 
@@ -61,9 +61,9 @@ allowed-tools: Read Write Edit Grep Glob Bash(npx vitest run) Bash(npx tsc -b)
   - 예약 페이지의 DOM 구조를 분석하여 selector를 정확히 지정
   - 단계별로 `wait` 액션을 넣어 DOM 로드를 보장
 
-**참고**: `src/core/autofill.ts`의 `PageAction` 타입 정의를 확인하고, 기존 `zerohongdae/actions.ts`를 참조하되 각 업체 예약 페이지 구조에 맞게 작성.
+**참고**: `playground/extension/src/core/autofill.ts`의 `PageAction` 타입 정의를 확인하고, 기존 `zerohongdae/actions.ts`를 참조하되 각 업체 예약 페이지 구조에 맞게 작성.
 
-### 4. `src/providers/{provider-id}/index.ts`
+### 4. `playground/extension/src/providers/{provider-id}/index.ts`
 
 팩토리 함수. `ProviderAdapter` 계약을 만족하는 객체 반환.
 
@@ -101,7 +101,7 @@ export const create{Provider}Provider = (): ProviderAdapter => ({
 - `{ status: 'not_found' }` — 빈자리 없음 (엔진이 재시도)
 - `{ status: 'failed' }` — 복구 불가 실패
 
-### 5. `src/providers/{provider-id}/{provider-id}.test.ts`
+### 5. `playground/extension/src/providers/{provider-id}/{provider-id}.test.ts`
 
 mapper 함수와 provider meta에 대한 단위 테스트.
 
@@ -131,7 +131,7 @@ describe('{provider-id} provider', () => {
 
 ## 레지스트리 등록
 
-파일 4개 생성 후, `src/providers/registry.ts`에 새 업체를 등록:
+파일 4개 생성 후, `playground/extension/src/providers/registry.ts`에 새 업체를 등록:
 
 1. import 추가: `import { create{Provider}Provider } from './{provider-id}';`
 2. `providerFactories` 객체에 항목 추가: `{provider-id}: create{Provider}Provider,`
@@ -140,25 +140,25 @@ describe('{provider-id} provider', () => {
 
 모든 파일 생성 + 레지스트리 등록 후 반드시 실행:
 
-1. `npx tsc -b` — TypeScript 타입 체크 통과
-2. `npx vitest run` — 기존 + 새 테스트 전부 통과
+1. `pnpm --filter @escape-from-home/extension exec tsc -b` — TypeScript 타입 체크 통과
+2. `pnpm --filter @escape-from-home/extension test` — 기존 + 새 테스트 전부 통과
 
 둘 다 통과해야 완료.
 
 ## 참고할 내부 타입 (절대 수정하지 말 것)
 
-`src/core/types.ts`의 주요 타입:
+`playground/extension/src/core/types.ts`의 주요 타입:
 - `Theme`: id, providerId, name, difficulty?, genre?, minPlayers, maxPlayers, duration, imageUrl?, branchName?
 - `TimeSlot`: themeId, datetime (ISO 8601), available, remainingSlots?
 - `BookingTask`: id, providerId, themeId, themeName, startDateTime, endDateTime, playerCount, status, retryCount, maxRetries, ...
 - `UserInfo`: name, phone, email?
 
-`src/providers/types.ts`의 주요 타입:
+`playground/extension/src/providers/types.ts`의 주요 타입:
 - `ProviderAdapter`: meta, fetchThemes, fetchTimeSlots, **execute(ctx: ExecutionContext) => Promise\<ExecutionResult\>**
 - `ExecutionContext`: { task: BookingTask, userInfo: UserInfo | null, signal?: AbortSignal }
 - `ExecutionResult`: { status: 'booked'|'found'|'not_found'|'failed', message?, confirmationId?, actions?: PageAction[], notificationUrl? }
 
-`src/core/autofill.ts`의 `PageAction` 타입:
+`playground/extension/src/core/autofill.ts`의 `PageAction` 타입:
 - `fill`: { type: 'fill', selectors: string[], value: string }
 - `click`: { type: 'click', selector: string }
 - `check`: { type: 'check', selector: string }

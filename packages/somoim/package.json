@@ -1,0 +1,22 @@
+{
+  "name": "@escape-from-home/somoim",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "소모임 게시판(벙 일정) 수집·파싱 라이브러리",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
+  },
+  "scripts": {
+    "sync": "node scripts/sync.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

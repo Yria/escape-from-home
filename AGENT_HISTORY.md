@@ -274,3 +274,16 @@
 - 디자인 변경사항을 코드에 반영: MainPage에 playerCount state/UI와 activeTasks 배너, SettingsPage에서 playerCount 제거, App.tsx에서 tasks 전달, CSS 추가
 
 ---
+
+## #27
+
+**Prompt**: https://www.xn--2e0b040a4xj.com/reservation?branch=2&theme=&date=2026-07-09#list 여기 사이트 예약할건데 구조파악하고 기존처럼 방탈 등록해줘
+
+**Answer**: 지구별방탈출(지구별.com, punycode 도메인) 예약 사이트 구조를 파악하고 새 provider로 등록했습니다.
+
+- **구조 분석**: Laravel 서버 렌더링. `GET /reservation?branch=&theme=&date=`로 지점별 테마+시간대 HTML 렌더링(테마 지정 시 단일 섹션). 지점 3개(대구점1/홍대어드벤처점2/홍대라스트시티점4). 예약가능 슬롯은 `button.eveReservationButton` + `.eveHiddenData` JSON 보유. 예약 흐름은 슬롯 클릭 → `POST /reservation/create` → 정보입력 폼(name/phone/people/payment_method=21 가상계좌/policy) → `#eveReservationBtn` 최종 제출 2단계.
+- **구현**: keyescape 패턴(HTML 스크래핑 + 멀티스텝 autofill, JSON 예약 API 없음)을 따라 api/mapper/actions/index/test 5개 파일 생성. Theme id는 `jigubyeol:{branch}:{theme}`, 슬롯 선택은 렌더 순서 기반 nth-child 셀렉터 사용. registry 등록 + manifest host_permission 추가. UI는 getAllProviders()로 동적 노출되어 추가 작업 불필요.
+- **적대적 리뷰 워크플로우**(4개 차원 병렬 리뷰+검증)로 버그 검출 후 수정: (HIGH) 인원 구분자가 `-`/`~` 혼용인데 정규식이 하이픈만 매칭해 다수 테마 min/max 오파싱 → 물결/대시 변형 포함하도록 수정. (LOW) todayStr가 UTC 기준이라 execute의 로컬시간과 불일치 → 로컬 날짜로 통일. playerCount 미검증 select는 기존 provider와 동일 동작이라 유지.
+- **검증**: tsc -b 통과, 전체 46개 테스트 통과, 실데이터 파싱 확인(잔향 10:15/23:05 예약가능 탐지, 대구점 물결 테마 min/max 정상).
+
+---

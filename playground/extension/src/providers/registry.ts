@@ -2,10 +2,12 @@ import type { ProviderId } from "../core/types";
 import type { ProviderAdapter } from "./types";
 import { createZerohongdaeProvider } from "./zerohongdae";
 import { createKeyescapeProvider } from "./keyescape";
+import { createJigubyeolProvider } from "./jigubyeol";
 
 const providerFactories: Record<ProviderId, () => ProviderAdapter> = {
 	zerohongdae: createZerohongdaeProvider,
 	keyescape: createKeyescapeProvider,
+	jigubyeol: createJigubyeolProvider,
 };
 
 export const getAllProviders = (): ProviderAdapter[] =>
