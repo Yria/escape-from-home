@@ -14,6 +14,7 @@ import {
 import { countByStatus, matchesFilter, type StatusFilter } from './lib/status'
 import { useSnapshot } from './hooks/useSnapshot'
 import { useToday } from './hooks/useToday'
+import { useSwipe } from './hooks/useSwipe'
 import { Header } from './components/Header'
 import { FilterSeg } from './components/FilterSeg'
 import { MonthGrid } from './components/MonthGrid'
@@ -56,6 +57,10 @@ export default function App() {
         ? today
         : toDateKey(month.year, month.month, 1)
 
+  const prevMonth = () => setMonth((m) => addMonths(m, -1))
+  const nextMonth = () => setMonth((m) => addMonths(m, 1))
+  const swipe = useSwipe(prevMonth, nextMonth)
+
   const pickDay = (day: CalendarDay) => {
     if (!day.inMonth) setMonth({ year: day.year, month: day.month })
     setPicked(day.key)
@@ -68,8 +73,8 @@ export default function App() {
           month={month}
           generatedAt={snapshot?.generatedAt ?? null}
           refreshing={refreshing}
-          onPrev={() => setMonth((m) => addMonths(m, -1))}
-          onNext={() => setMonth((m) => addMonths(m, 1))}
+          onPrev={prevMonth}
+          onNext={nextMonth}
           onToday={() => {
             setMonth(kstYearMonth(new Date()))
             setPicked(today)
@@ -90,7 +95,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="cal__stage" aria-busy={phase === 'loading'}>
+        <div className="cal__stage" aria-busy={phase === 'loading'} {...swipe}>
           <MonthGrid weeks={weeks} byDate={byDate} today={today} selected={selected} onSelect={pickDay} />
           {phase === 'loading' && (
             <div className="loading">

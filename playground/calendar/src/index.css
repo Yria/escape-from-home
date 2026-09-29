@@ -136,6 +136,8 @@ a:hover {
 
 .cal__stage {
   position: relative;
+  /* 세로 스크롤은 브라우저에 맡기고 가로 스와이프는 월 이동으로 쓴다 */
+  touch-action: pan-y;
 }
 .loading {
   position: absolute;
