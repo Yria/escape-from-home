@@ -37,7 +37,8 @@ export default function App() {
     const keys = new Set(weeks.flat().map((d) => d.key))
     return events.filter((e) => keys.has(e.date))
   }, [events, weeks])
-  const counts = useMemo(() => countByStatus(monthEvents.filter((e) => isSameMonth(e.date, month))), [monthEvents, month])
+  // 필터 숫자는 보고 있는 달과 상관없이 받아 온 전체(날짜 미확인 글 포함) 기준
+  const counts = useMemo(() => countByStatus([...events, ...(snapshot?.undated ?? [])]), [events, snapshot])
   const byDate = useMemo(
     () => groupByDate(monthEvents.filter((e) => matchesFilter(e, filter))),
     [monthEvents, filter],
