@@ -1,2 +1,5 @@
 # 동기화 스크립트/빌드가 생성하는 스냅샷
 public/data/
+
+# Vercel 빌드 산출물 (scripts/vercel-output.ts)
+.vercel/

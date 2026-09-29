@@ -787,7 +787,7 @@ For reference, a private repo gets 2,000 free minutes a month. Each run takes ab
 
 ---
 
-## #30
+## #31
 
 **Action**: 캘린더 배포에 5분 간격 예약 실행 추가
 
@@ -795,3 +795,160 @@ For reference, a private repo gets 2,000 free minutes a month. Each run takes ab
 - cron '2-59/5 * * * *': GitHub 예약 실행의 최소 간격. 정각 근처에 몰리는 걸 피하려고 2분부터 시작
 - 공개 저장소라 Actions와 Pages 모두 무료
 - 60일 동안 커밋이 없으면 예약 실행이 멈추므로 Actions 탭에서 다시 켜야 함
+
+## #31
+
+**Prompt**: 잠깐 커밋이 없으면 멈춘다고? 이 코드는 거의 수정할일이 없을거같은데
+
+**Answer**: Yes, it would stop. GitHub counts only **new commits** as activity, and the scheduled runs themselves don't count. So if nobody commits for 60 days, the schedule gets paused automatically. GitHub sends an email a few days beforehand.
+
+## Keeping it running without commits
+GitHub has a feature to "re-enable a workflow" (`gh workflow enable`). Calling it regularly restarts the 60-day timer, so you don't need to make dummy commits.
+
+- **How**: add one small file, `.github/workflows/keepalive.yml`. On the 1st and 15th of each month it re-enables itself and the calendar deploy workflow.
+- **Needs**: only GitHub's built-in permission (`actions: write`). No extra token, no outside service.
+- **Cost**: free. It runs twice a month for a few seconds.
+- **Caveat**: GitHub doesn't officially document that this resets the timer. Many projects use it and it works, according to the [community discussion](https://github.com/orgs/community/discussions/184653) and [keepalive-workflow](https://github.com/marketplace/actions/keepalive-workflow). If it ever doesn't work, you'll still get GitHub's warning email first, and you can press "Enable" once in the Actions tab.
+
+Should I add this and deploy it?
+
+**Status**: the 5-minute schedule is already pushed and running (`f02ba62`). One thing I didn't finish: my history entry got the same number, #30, as one that was already there. The command to renumber it to #31 was the one you stopped. I can fix it in the same commit if you go ahead.
+
+Sources:
+- [Disabling and enabling a workflow - GitHub Docs](https://docs.github.com/actions/managing-workflow-runs/disabling-and-enabling-a-workflow)
+- [Keepalive Workflow · GitHub Marketplace](https://github.com/marketplace/actions/keepalive-workflow)
+- [GitHub community discussion #184653](https://github.com/orgs/community/discussions/184653)
+- [GitHub community discussion #57858](https://github.com/orgs/community/discussions/57858)
+
+---
+
+## #32
+
+**Prompt**: 그럼 다른방법 쓸래. 버셀이나 클라우드플레어는 어때
+
+**Answer**: Both are free, and both **fetch fresh data every time someone visits**. So cron and the 60-day auto-stop stop being a concern.
+
+## Comparison
+
+| | Cloudflare Workers | Vercel |
+|---|---|---|
+| **Cost** | Free, no card | Free, no card |
+| **Free limit** | 100k requests/day | 1M calls/month |
+| **Data freshness** | Fetched on every visit | Fetched on every visit |
+| **Server location** | Picked automatically (can be set near Somoim's server in Tokyo) | Can be pinned to **Seoul** |
+| **Code changes** | Moderate (add a Worker file and a config file) | Moderate (add a function file and a config file) |
+| **Risk of failing to deploy as is** | Low. It bundles our TS code as is | **Higher.** It may not handle the way our package ships TS source |
+| **Other limits** | Very little CPU time per request. Normally within it, borderline on a cold start | **Non-commercial use only.** Going over the limit suspends the site |
+| **How it deploys** | Automatically through the GitHub workflow (token goes in GitHub) | Link the repo on Vercel and it deploys on each push |
+| **Address** | `이름.서브도메인.workers.dev` | `이름.vercel.app` |
+
+## My recommendation: Cloudflare
+- It's the most likely to run our code as is, so it has the least deploy trouble.
+- Its free limit resets daily, and even going over it doesn't suspend the site.
+- Vercel is closer (Seoul), but the risk of the build not working as is makes it harder to recommend.
+
+Both share one risk: whether Somoim blocks connections from these services is only known after deploying. If Cloudflare turns out to be blocked, we'd move just the data part to Vercel.
+
+## If you go with Cloudflare
+**My part**
+- Write the Worker and its config file.
+- Test locally that it actually collects data.
+- Change the GitHub workflow to deploy to Cloudflare.
+- Remove the 5-minute cron I just added, since it won't be needed anymore.
+
+**Your part**
+1. Sign up for Cloudflare (free).
+2. Create an API token and put it in GitHub. I'll walk you through the steps when we get there.
+
+Which one should I go with?
+
+---
+
+## #33
+
+**Prompt**: 잠깐 이전설명에 깃헙에서 가능하다고 한거야? 한글로좀 말해봐
+
+**Answer**: 네, GitHub로도 **됩니다.** 다만 방식이 다릅니다.
+
+## GitHub 방식: "미리 받아 두기"
+- GitHub가 **5분마다** 소모임 게시판을 가져와서 파일로 저장해 둡니다.
+- 방문자는 그 저장된 파일을 봅니다.
+- 그래서 데이터는 **최대 5분(밀리면 10~30분) 전 것**입니다.
+- 서버도, 새 가입도 필요 없고 주소도 그대로입니다.
+- **지금 이 방식으로 이미 배포되어 돌아가고 있습니다.**
+
+걸리는 점은 하나입니다.
+- 저장소에 60일 동안 새 커밋이 없으면 GitHub가 5분마다 하던 작업을 **알아서 멈춥니다.**
+- 이건 **파일 하나를 추가하면 막을 수 있습니다.** 한 달에 두 번 GitHub에게 "이 작업 계속 켜 둬"라고 알려 주는 방식입니다. 무료이고 가입할 것도 없습니다.
+
+## 클라우드플레어·버셀 방식: "들어올 때마다 가져오기"
+- 누가 들어오는 **그 순간** 소모임 게시판을 가져옵니다.
+- 그래서 항상 **지금 이 순간의 데이터**입니다.
+- 멈출 걱정도 없습니다.
+- 대신 새로 가입해야 하고 주소가 바뀝니다.
+
+## 정리
+
+| | GitHub (지금 방식) | 클라우드플레어 |
+|---|---|---|
+| 데이터 | 5~30분 전 | 지금 이 순간 |
+| 가입 | 필요 없음 | 필요함 |
+| 주소 | 그대로 | 바뀜 |
+| 60일 멈춤 | 파일 하나로 해결 | 해당 없음 |
+| 비용 | 무료 | 무료 |
+
+아까 "30분 간격이면 된다"고 하셨으니 **GitHub 방식에 멈춤 방지 파일만 추가하는 걸 추천**합니다. 가장 간단하고 지금 주소도 그대로 씁니다.
+
+어느 쪽으로 할까요?
+
+---
+
+## #34
+
+**Prompt**: 버셀로 할거고 [Image #1] 여기서 셋팅 어떻게해야할지알려줘
+
+**Answer**: I've got the Vercel setup ready and tested locally, but it isn't pushed yet. Vercel builds whatever is on GitHub, so **this code needs to be pushed first**. Nothing is committed yet either.
+
+## What to pick on that screen
+
+1. **Don't use "Import multi-service project" (the Services preset).** Leave that section alone.
+2. In the **calendar** row (not extension), click **"Import single project →"**.
+3. On the next screen:
+   - **Project Name**: pick anything. It becomes the address, e.g. `escape-calendar` → `escape-calendar.vercel.app`.
+   - **Root Directory**: should be `playground/calendar`. That button fills it in.
+   - **Framework Preset**: Vite (leave it).
+   - **Build Command / Output Directory / Install Command**: **don't touch any of them**. The `vercel.json` file I added overrides them.
+   - **Environment Variables**: none needed.
+4. Click **Deploy**.
+
+After it's created, check two things under Project **Settings → Build and Deployment**:
+- **Node.js Version**: `24.x`.
+- **"Include files outside the root directory in the Build Step"**: on (it's on by default). The calendar needs the somoim package in the same repo, so this must be on.
+
+## What I built
+- **The function** (`server/vercelEvents.ts`): collects the Somoim board fresh on every visit. It runs in the Seoul region.
+- **Bundling**: Vercel's own conversion broke the function, because our package ships TypeScript source that it couldn't resolve. So `scripts/vercel-output.ts` bundles the function into one file with Vite and hands Vercel the finished result.
+- **Fallback**: if collection fails, it shows the data from the previous run. If there is none, it shows the data made at deploy time.
+- **Local tests**:
+  - Live collection works: 35 events in 0.57s, not cached.
+  - With the network cut, it falls back to the saved data.
+  - Vercel's build tool uses our output as it is.
+- **GitHub cron removed**: the 5-minute scheduled run isn't needed anymore.
+
+## Still to decide
+- **Push**: the Vercel code is staged but not committed. Should I commit and push? You can do the Vercel import before or after. Once the code is on GitHub, Vercel redeploys automatically.
+- **GitHub Pages**: it still redeploys on every push. After Vercel is confirmed working, should I remove that deploy workflow too?
+
+Once it's deployed, send me the address. I'll check whether Somoim blocks requests from Vercel, by making sure the response doesn't come back marked as fallback data.
+
+Sources: [Vercel rewrites](https://vercel.com/docs/routing/rewrites) · [Function regions](https://vercel.com/docs/functions/configuring-functions/region) · [Build Output API](https://vercel.com/docs/build-output-api/configuration)
+
+---
+
+## #35
+
+**Prompt**: 그럼 버셀로 배포할거니까 코드수정할거 있음 수정하고 최종 커밋 푸쉬해
+
+**Answer**: _(응답 대기 중…)_
+
+---
