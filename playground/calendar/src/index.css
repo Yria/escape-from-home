@@ -185,7 +185,7 @@ a:hover {
   background: var(--color-accent-900);
 }
 .cell--outside {
-  opacity: 0.35;
+  opacity: 0.4;
 }
 .cell:hover .cell__ring {
   box-shadow: inset 0 0 0 1px var(--color-divider);
@@ -214,6 +214,9 @@ a:hover {
   background-color: var(--color-accent-800);
   color: var(--color-accent-300);
 }
+.cell__poster.is-dim {
+  filter: grayscale(0.85) brightness(0.5);
+}
 .cell__poster img {
   width: 100%;
   height: 100%;
@@ -230,24 +233,35 @@ a:hover {
 
 .cell__num {
   position: absolute;
+  z-index: 2;
   top: 4px;
   left: 4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 3px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
-  font-size: 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1;
-  color: var(--color-neutral-300);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-neutral-100);
+}
+/* 사진이 깔린 칸은 숫자 뒤에 어두운 알약을 깔아 어떤 포스터 위에서도 읽히게 한다 */
+.cell--has .cell__num {
+  background: color-mix(in srgb, var(--color-bg) 78%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent);
+  backdrop-filter: blur(2px);
 }
 .cell--sun .cell__num {
   color: var(--color-accent-300);
 }
-.cell--today .cell__num {
+.cell--today .cell__num,
+.cell--today.cell--has .cell__num {
   color: var(--color-bg);
-  background: var(--color-accent-400);
+  background: var(--color-accent-300);
+  box-shadow: none;
 }
 
 .cell__more {
@@ -284,6 +298,15 @@ a:hover {
 }
 .cell__pill--horror {
   background: var(--horror-pill);
+}
+.cell__pill.is-dim {
+  opacity: 0.45;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--color-accent-100) 50%, transparent);
+}
+/* 그날 벙이 모두 끝났으면 칸 바탕도 가라앉힌다 */
+.cell--finished {
+  background: color-mix(in srgb, var(--color-accent-900) 55%, var(--color-bg));
 }
 
 .cell__ring {
@@ -473,7 +496,10 @@ a:hover {
   cursor: pointer;
   text-align: left;
 }
-.undated__row:hover .undated__raw {
+.undated__row:hover .undated__conflict {
+  color: oklch(0.8 0.12 70);
+}
+.undated__raw {
   color: var(--color-accent-200);
 }
 .undated__body {
@@ -482,6 +508,9 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.undated__conflict {
+  color: oklch(0.8 0.12 70);
 }
 .undated__raw {
   font-size: 13px;
@@ -745,4 +774,128 @@ a:hover {
 }
 .sheet__cta:hover {
   color: var(--color-accent);
+}
+
+/* ── 공포 벙 상세: 핏빛 바탕·핏물 띠·경고 줄 ─────────────────────── */
+.sheet--horror {
+  --sheet-bg: oklch(0.17 0.035 20);
+  background:
+    radial-gradient(120% 60% at 50% 0%, oklch(0.26 0.09 25 / 0.55) 0%, transparent 70%),
+    var(--sheet-bg);
+  box-shadow: 0 0 0 1px oklch(0.4 0.14 25), 0 -12px 60px oklch(0.4 0.16 25 / 0.35);
+}
+.sheet--horror::backdrop {
+  background: radial-gradient(circle at 50% 100%, oklch(0.22 0.08 25 / 0.75), oklch(0.08 0.02 20 / 0.85));
+}
+.sheet--horror .sheet__inner {
+  position: relative;
+}
+.sheet-drip {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 56px;
+  pointer-events: none;
+  fill: var(--horror-blood);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
+}
+.sheet--horror .sheet__hero {
+  background-color: oklch(0.12 0.03 20);
+}
+.sheet--horror .sheet__hero img {
+  filter: sepia(0.35) saturate(1.3) hue-rotate(-18deg) contrast(1.1) brightness(0.8);
+}
+.sheet--horror .sheet__hero::after {
+  background:
+    linear-gradient(180deg, oklch(0.3 0.12 25 / 0.35) 0%, transparent 40%),
+    linear-gradient(180deg, transparent 45%, var(--sheet-bg) 100%);
+}
+.sheet__warn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--horror-ink);
+  background: oklch(0.24 0.08 22 / 0.8);
+  box-shadow: inset 0 0 0 1px oklch(0.42 0.15 25 / 0.7);
+}
+.sheet__warn svg {
+  flex: none;
+  color: oklch(0.7 0.19 25);
+  animation: flicker 5s steps(1) infinite;
+}
+@keyframes flicker {
+  0%, 90%, 94%, 100% { opacity: 1; }
+  92%, 96% { opacity: 0.25; }
+}
+.sheet--horror .sheet__title {
+  color: oklch(0.93 0.03 20);
+  text-shadow: 0 0 18px oklch(0.55 0.2 25 / 0.55);
+}
+.sheet--horror .sheet__raw,
+.sheet--horror .sheet__note,
+.sheet--horror .sheet__facts dt {
+  color: oklch(0.7 0.04 20);
+}
+.sheet--horror .sheet__facts {
+  background: oklch(0.21 0.045 20);
+  box-shadow: inset 0 0 0 1px oklch(0.35 0.1 25 / 0.6);
+}
+.sheet--horror .sheet__fact-sub {
+  color: oklch(0.78 0.04 20);
+}
+.sheet--horror .sheet__body {
+  color: oklch(0.9 0.02 20);
+}
+.sheet--horror .avatar {
+  background: oklch(0.3 0.09 22);
+  color: var(--horror-ink);
+}
+.sheet--horror .sheet__cta {
+  color: oklch(0.82 0.1 22);
+  border-color: oklch(0.55 0.18 25);
+}
+.sheet--horror .sheet__cta:hover {
+  color: oklch(0.88 0.08 22);
+  background: oklch(0.55 0.18 25 / 0.14);
+}
+.sheet--horror .btn-secondary {
+  border-color: oklch(0.4 0.1 25 / 0.8);
+}
+.sheet--horror :focus-visible {
+  outline-color: oklch(0.65 0.19 25);
+}
+
+.sheet__roles {
+  grid-column: 1 / -1;
+}
+.sheet__roles dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.role-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--horror-ink);
+  background: var(--horror-bg);
+  box-shadow: inset 0 0 0 1px oklch(0.45 0.15 25 / 0.6);
+}
+.sheet__roles-none {
+  font-size: 13px;
+  font-weight: 400;
+  color: oklch(0.7 0.04 20);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet__warn svg {
+    animation: none;
+  }
 }

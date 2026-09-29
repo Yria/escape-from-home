@@ -26,6 +26,7 @@ export function DayCell({ day, events, isToday, isSelected, onSelect }: Props) {
   const cls = [
     'cell',
     events.length ? 'cell--has' : '',
+    events.length && events.every(isFinished) ? 'cell--finished' : '',
     day.inMonth ? '' : 'cell--outside',
     isToday ? 'cell--today' : '',
     isSelected ? 'cell--selected' : '',
@@ -41,7 +42,7 @@ export function DayCell({ day, events, isToday, isSelected, onSelect }: Props) {
         <>
           <span className="cell__posters">
             {shown.map((e) => (
-              <Poster key={e.id} src={e.thumbnailUrl} />
+              <Poster key={e.id} src={e.thumbnailUrl} dim={isFinished(e)} />
             ))}
           </span>
           <span className="cell__shade" />
@@ -53,7 +54,10 @@ export function DayCell({ day, events, isToday, isSelected, onSelect }: Props) {
       {!withImg && events.length > 0 && (
         <span className="cell__pills">
           {shown.map((e) => (
-            <span key={e.id} className={`cell__pill${e.horror ? ' cell__pill--horror' : ''}`}>
+            <span
+              key={e.id}
+              className={`cell__pill${e.horror ? ' cell__pill--horror' : ''}${isFinished(e) ? ' is-dim' : ''}`}
+            >
               {shortTitle(e.title)}
             </span>
           ))}
@@ -64,11 +68,14 @@ export function DayCell({ day, events, isToday, isSelected, onSelect }: Props) {
   )
 }
 
+/** 모집이 끝난 벙(마감·완료·펑)은 칸 안에서 흐리게 보여 모집중인 벙이 눈에 띄게 한다 */
+const isFinished = (e: ScheduleEvent) => e.status !== 'open' || e.cancelled
+
 /** 포스터 한 장. 사진이 없거나 못 불러오면 문 아이콘 */
-function Poster({ src }: { src: string | null }) {
+function Poster({ src, dim }: { src: string | null; dim: boolean }) {
   const [failed, setFailed] = useState(false)
   return (
-    <span className="cell__poster">
+    <span className={`cell__poster${dim ? ' is-dim' : ''}`}>
       {src && !failed ? (
         <img src={src} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
       ) : (

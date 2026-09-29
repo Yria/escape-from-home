@@ -40,6 +40,8 @@ export interface ScheduleEvent {
   cancelled: boolean
   /** 공포 테마 벙 (제목·미리보기의 공포/호러/공테/쫄/탱) */
   horror: boolean
+  /** 공포 벙의 쫄/탱 인원·찾는 역할 (공포가 아니거나 적힌 게 없으면 null) */
+  roles: HorrorRoles | null
   category: ArticleCategory
   thumbnailUrl: string | null
   imageUrl: string | null
@@ -50,7 +52,9 @@ export interface ScheduleEvent {
   postedAt: string
   /** 웹 모임 페이지 (글 하나로 가는 주소는 소모임에 없다) */
   articleUrl: string
-  /** 앱으로 모임 열기 (모바일용) */
+  /** 글이 올라온 모임 id (앱 딥링크용) */
+  groupId: string
+  /** 웹 페이지를 거쳐 앱으로 모임 열기 (앱이 없으면 스토어) */
   appUrl: string
 }
 
@@ -64,18 +68,23 @@ export interface UndatedPost {
   authorAvatarUrl: string
   /** 날짜 대신 찾은 '언제쯤' 단서 ("10월 중", "다음달 첫째 주", "주말", "금요일"). 없으면 null */
   whenHint: string | null
+  /** 날짜는 있었지만 요일이 맞지 않아 달력에 올리지 않은 경우 그 내용 */
+  dateConflict: DateConflict | null
   startTime: string | null
   endTime: string | null
   postedAt: string
   status: EventStatus
   cancelled: boolean
   horror: boolean
+  /** 공포 벙의 쫄/탱 인원·찾는 역할 (공포가 아니거나 적힌 게 없으면 null) */
+  roles: HorrorRoles | null
   category: ArticleCategory
   thumbnailUrl: string | null
   imageUrl: string | null
   participants: Participants | null
   members: string[]
   commentCount: number
+  groupId: string
   articleUrl: string
   appUrl: string
 }
@@ -88,6 +97,25 @@ export interface ScheduleSnapshot {
   generatedAt: string
   events: ScheduleEvent[]
   undated: UndatedPost[]
+}
+
+/** 적힌 날짜와 요일이 서로 맞지 않는 경우 ("9/30(목)" 인데 9/30 은 수요일) — 이런 글은 날짜 미확인으로 둔다 */
+export interface DateConflict {
+  /** 글에 적힌 날짜 'YYYY-MM-DD' (연도는 게시일로 추정) */
+  date: string
+  /** 글에 적힌 요일 0=일 … 6=토 */
+  writtenWeekday: number
+  /** 그 날짜의 실제 요일 */
+  actualWeekday: number
+}
+
+export interface HorrorRoles {
+  /** "쫄3", "쫄 2명" — 적힌 쫄(겁 많은 사람) 인원. 없으면 null */
+  jjol: number | null
+  /** 탱(앞장서는 사람) 인원 */
+  tang: number | null
+  /** 찾는 역할. 'any' = "쫄탱 무관·상관없이·구분없이" */
+  wanted: 'jjol' | 'tang' | 'any' | null
 }
 
 export interface ParsedSchedule {

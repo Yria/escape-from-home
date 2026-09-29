@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ARTICLES_ENDPOINT, fetchArticles } from './api.ts'
-import { buildSnapshot } from './snapshot.ts'
+import { articleStatus, buildSnapshot, groupAppLaunchUrl } from './snapshot.ts'
 import { dateToSomoimTime, somoimTimeToDate } from './time.ts'
 import type { SomoimArticle } from './types.ts'
 
@@ -138,6 +138,7 @@ describe('buildSnapshot', () => {
       ['a2', '2026-10-01', '14:00', 'open'],
       ['a1', '2026-10-03', '19:30', 'closed'],
     ])
+    expect([...snap.events, ...snap.undated].map((e) => e.groupId)).toEqual(['g', 'g', 'g'])
     expect(snap.events[1]).toMatchObject({ title: '10/3(토) 강남 벙', participants: { current: 3, max: 3 }, preview: '19:30\n3/3 가, 나, 다' })
     expect(snap.undated.map((u) => u.id)).toEqual(['a5'])
   })
@@ -190,5 +191,49 @@ describe('fetchArticles — 제한 시간', () => {
     const p = fetchArticles({ fetchImpl: impl, signal: ac.signal, timeoutMs: 5_000 })
     ac.abort(new Error('취소'))
     await expect(p).rejects.toThrow('취소')
+  })
+})
+
+describe('articleStatus — 분류를 안 옮긴 관심사 글', () => {
+  const art = (at: string, c = '', cat = 'I') => ({ at, c: `${at}\n\n${c}`, cat })
+  it('관심사 글은 모집중', () => {
+    expect(articleStatus(art('10/10 강남', '2/4 모집'), { date: '2026-10-10', participants: { current: 2, max: 4 }, today: '2026-09-29' })).toBe('open')
+  })
+  it('"마감 임박" 같은 말은 마감이 아니다', () => {
+    expect(articleStatus(art('10/10 강남', '마감 임박! 한 자리 남았어요'))).toBe('open')
+  })
+  it('인원이 다 차면 마감', () => {
+    expect(articleStatus(art('10/10 강남', '3/3 가 나 다'), { participants: { current: 3, max: 3 } })).toBe('closed')
+  })
+  it('모임 날짜가 지났으면 마감 (오늘은 아직 모집중)', () => {
+    expect(articleStatus(art('9/28 강남'), { date: '2026-09-28', today: '2026-09-29' })).toBe('closed')
+    expect(articleStatus(art('9/29 강남'), { date: '2026-09-29', today: '2026-09-29' })).toBe('open')
+  })
+  it('후기는 날짜가 지나도 완료', () => {
+    expect(articleStatus(art('9/1 강남', '', 'E'), { date: '2026-09-01', today: '2026-09-29' })).toBe('done')
+  })
+})
+
+describe('buildSnapshot — 요일이 안 맞는 글', () => {
+  it('날짜 미확인으로 보내고 dateConflict 를 싣는다', async () => {
+    const ot = dateToSomoimTime(new Date('2026-09-20T12:00:00+09:00'))
+    const { impl } = mockServer([article(1, ot, { at: '9/30(목) 홍대 오시리스', c: '9/30(목) 홍대 오시리스\n\n19:30', cat: 'I' })])
+    const snap = await buildSnapshot({ groupId: 'g', fetchImpl: impl, since: new Date(0), now: NOW })
+    expect(snap.events).toHaveLength(0)
+    expect(snap.undated[0].dateConflict).toEqual({ date: '2026-09-30', writtenWeekday: 4, actualWeekday: 3 })
+    expect(snap.undated[0].startTime).toBe('19:30')
+  })
+})
+
+describe('groupAppLaunchUrl', () => {
+  it('iOS 는 somoim 스킴으로 모임 화면(type=63)을 연다', () => {
+    expect(groupAppLaunchUrl('g-1', 'ios')).toBe('somoim://com.friendscube.Somoim?type=63&gid=g-1')
+  })
+
+  it('Android 는 intent 주소에 앱이 없을 때 갈 안내 페이지를 담는다', () => {
+    const url = groupAppLaunchUrl('g-1', 'android')
+    expect(url).toMatch(/^intent:\/\/com\.friendscube\.Somoim\?type=63&gid=g-1#Intent;scheme=somoim;/)
+    expect(url).toContain(';package=com.friendscube.somoim;')
+    expect(url).toContain(`S.browser_fallback_url=${encodeURIComponent('https://www.somoim.co.kr/m/deeplink/g-1')};end`)
   })
 })

@@ -1,4 +1,4 @@
-import type { ParsedSchedule, Participants } from './types.ts'
+import type { DateConflict, HorrorRoles, ParsedSchedule, Participants } from './types.ts'
 import { addDays, daysInMonth, formatHm, formatYmd, kstParts, weekdayOf, dayDiff } from './time.ts'
 
 /*
@@ -375,6 +375,19 @@ function resolveDate(norm: string, cands: DateCandidate[], posted: YMD): { cand:
   return { cand, ymd }
 }
 
+function weekdayConflict({ cand, ymd }: { cand: DateCandidate; ymd: YMD }): boolean {
+  return cand.weekday != null && weekdayOf(ymd.year, ymd.month, ymd.day) !== cand.weekday
+}
+
+/** parseSchedule 이 요일이 안 맞아 날짜를 버렸다면 그 내용. 아니면 null */
+export function findDateConflict(text: string, postedAt: Date): DateConflict | null {
+  const norm = normalizeText(text)
+  const resolved = resolveDate(norm, findDateCandidates(norm), kstParts(postedAt))
+  if (!resolved || !weekdayConflict(resolved)) return null
+  const { year, month, day } = resolved.ymd
+  return { date: formatYmd(year, month, day), writtenWeekday: resolved.cand.weekday!, actualWeekday: weekdayOf(year, month, day) }
+}
+
 /**
  * 제목 + "\n" + 본문에서 일정 날짜/시간을 찾는다. 날짜가 없으면 null.
  * postedAt 은 연도 추정(게시일보다 60일 넘게 과거면 다음 해)과 상대 날짜에 쓴다.
@@ -386,6 +399,8 @@ export function parseSchedule(text: string, postedAt: Date): ParsedSchedule | nu
   const tEnd = titleEnd(norm)
 
   const resolved = resolveDate(norm, cands, posted)
+  // 적힌 요일이 그 날짜의 실제 요일과 다르면 날짜·요일 중 무엇이 맞는지 알 수 없으므로 날짜 미확인으로 둔다
+  if (resolved && weekdayConflict(resolved)) return null
   const chosen = resolved?.cand ?? null
   let ymd: YMD | null = resolved?.ymd ?? null
   if (!ymd) ymd = relativeDate(norm.slice(0, tEnd), posted, true)
@@ -524,8 +539,25 @@ export function isCancelledTitle(title: string): boolean {
   return new RegExp(CANCEL_MARKER_RE.source).test(title)
 }
 
+/**
+ * 모집이 끝났다는 표시. "마감"이 들어갔다고 다 마감은 아니다 ("마감 임박", "마감되면 공지할게요").
+ * - 괄호 표시: [마감] (마감) 【급벙마감】, 제목 맨 앞의 "마감)"
+ * - 끝났다는 말: 마감했/마감됐/마감되었/마감입니다/마감이에요/마감완료/모집 마감(뒤에 임박·예정·되면 등이 없을 때)
+ * - (펑) [펑] 취소 표시
+ */
+const CLOSED_RE = new RegExp(
+  [
+    '[\\[(【]\\s*(?:급벙\\s*)?마감\\s*[\\])】]',
+    '^\\s*마감\\s*[)\\]]',
+    '마감\\s*(?:했|됐|되었|입니다|이에요|이요|완료)',
+    '모집\\s*마감(?!\\s*(?:임박|예정|전|되면|될|시|까지|일))',
+    '[\\[(]\\s*펑\\s*[\\])]',
+  ].join('|'),
+  'm',
+)
+
 export function hasClosedMarker(text: string): boolean {
-  return /마감/.test(text) || /[\[(]\s*펑\s*[\])]/.test(text)
+  return CLOSED_RE.test(text)
 }
 
 /**
@@ -539,4 +571,32 @@ const HORROR_RE = /공포|호러|horror|공테|쫄(?![깃면])|(?<!탱)탱(?![�
 
 export function isHorrorText(text: string): boolean {
   return HORROR_RE.test(text)
+}
+
+const ROLE_COUNT = (role: string) => new RegExp(`${role}(?![깃면탱고])\\s*(\\d{1,2})\\s*(?:명|인)?`)
+const ROLE_ANY_RE = /쫄\s*[,/·]?\s*탱|탱\s*[,/·]?\s*쫄/
+const ROLE_ANY_AFTER_RE = /^[^\n]{0,8}?(?:무관|상관\s*없|상관없|구분\s*없|가리지\s*않|다\s*환영|모두\s*환영)/
+const ROLE_WANT = (role: string) =>
+  new RegExp(`(?:극)?${role}(?:보|이|을|를|분|님)?\\s*(?:\\d{1,2}\\s*(?:명|인)?\\s*)?(?:찾|구해|구함|구합|모집|우선|환영|급구|필요)`)
+
+/** 제목·미리보기에서 쫄/탱 인원과 찾는 역할을 읽는다. 아무것도 없으면 null */
+export function parseHorrorRoles(text: string): HorrorRoles | null {
+  const norm = normalizeText(text)
+  const count = (role: string) => {
+    const m = norm.match(ROLE_COUNT(role))
+    return m ? Number(m[1]) : null
+  }
+  const jjol = count('쫄')
+  const tang = count('탱')
+  let wanted: HorrorRoles['wanted'] = null
+  const pair = norm.match(ROLE_ANY_RE)
+  if (pair && ROLE_ANY_AFTER_RE.test(norm.slice(pair.index! + pair[0].length))) wanted = 'any'
+  else {
+    const wj = ROLE_WANT('쫄').test(norm)
+    const wt = ROLE_WANT('탱').test(norm)
+    // 쫄·탱 인원이 둘 다 적혀 있으면("쫄1 탱2 모집") 한쪽만 찾는 게 아니므로 인원만 쓴다
+    wanted = jjol != null && tang != null ? null : wj && wt ? 'any' : wj ? 'jjol' : wt ? 'tang' : null
+  }
+  if (jjol == null && tang == null && wanted == null) return null
+  return { jjol, tang, wanted }
 }

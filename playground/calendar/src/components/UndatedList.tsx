@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { UndatedPost } from '@escape-from-home/somoim'
-import { CalendarDotsIcon, CalendarXIcon, CaretDownIcon, CaretRightIcon, CaretUpIcon, ChatCircleIcon, UserIcon } from '@phosphor-icons/react'
+import { CalendarDotsIcon, CalendarXIcon, CaretDownIcon, CaretRightIcon, CaretUpIcon, ChatCircleIcon, UserIcon, WarningCircleIcon } from '@phosphor-icons/react'
+import { formatConflictDate } from '../lib/calendar'
 import { StatusTag } from './StatusTag'
 
 interface Props {
@@ -41,11 +42,18 @@ export function UndatedList({ posts, onOpen }: Props) {
                       <ChatCircleIcon aria-hidden />
                       {p.commentCount}
                     </span>
-                    {p.whenHint && (
-                      <span>
-                        <CalendarDotsIcon aria-hidden />
-                        {p.whenHint}
+                    {p.dateConflict ? (
+                      <span className="undated__conflict">
+                        <WarningCircleIcon aria-hidden />
+                        {formatConflictDate(p.dateConflict.date, p.dateConflict.writtenWeekday)} 요일 불일치
                       </span>
+                    ) : (
+                      p.whenHint && (
+                        <span>
+                          <CalendarDotsIcon aria-hidden />
+                          {p.whenHint}
+                        </span>
+                      )
                     )}
                   </span>
                 </span>

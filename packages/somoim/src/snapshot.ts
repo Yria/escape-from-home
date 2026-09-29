@@ -1,10 +1,11 @@
 import { fetchArticles } from './api.ts'
-import { hasClosedMarker, isCancelledTitle, isHorrorText, parseMembers, parseParticipants, parseTime, parseWhenHint, parseSchedule, stripStatusMarkers } from './parse.ts'
+import { findDateConflict, hasClosedMarker, isCancelledTitle, isHorrorText, parseHorrorRoles, parseMembers, parseParticipants, parseTime, parseWhenHint, parseSchedule, stripStatusMarkers } from './parse.ts'
 import { articlePostedAt, toKstDateString, toKstIso } from './time.ts'
 import {
   DEFAULT_GROUP_ID,
   DEFAULT_GROUP_NAME,
   type ArticleCategory,
+  type Participants,
   type EventStatus,
   type ScheduleEvent,
   type ScheduleSnapshot,
@@ -27,6 +28,21 @@ export const groupUrl = (gid: string) => `https://www.somoim.co.kr/${gid}`
  * 앱의 모임을 열고 앱이 없으면 스토어로 보낸다. 글 하나로 가는 링크(웹·앱 모두)는 소모임에 없다.
  */
 export const groupAppUrl = (gid: string) => `https://www.somoim.co.kr/m/deeplink/${gid}`
+
+/** 앱의 딥링크. type=63 이 모임 화면이다 (앱 5.8.3 FCAppActivity 기준, 글 화면을 여는 type 은 없다) */
+const APP_GROUP_PATH = (gid: string) => `com.friendscube.Somoim?type=63&gid=${encodeURIComponent(gid)}`
+export type AppPlatform = 'android' | 'ios'
+/**
+ * 중간 페이지(`groupAppUrl`) 없이 앱의 모임 화면을 바로 여는 주소.
+ * Android 는 앱이 없으면 `browser_fallback_url` 로 `groupAppUrl`(스토어 안내)로 간다.
+ * iOS 는 앱이 없을 때 대신 갈 곳을 주소에 담을 수 없어서, 호출하는 쪽에서 `groupAppUrl` 로 넘겨야 한다.
+ */
+export const groupAppLaunchUrl = (gid: string, platform: AppPlatform) =>
+  platform === 'android'
+    ? `intent://${APP_GROUP_PATH(gid)}#Intent;scheme=somoim;action=android.intent.action.VIEW;` +
+      `category=android.intent.category.BROWSABLE;package=com.friendscube.somoim;` +
+      `S.browser_fallback_url=${encodeURIComponent(groupAppUrl(gid))};end`
+    : `somoim://${APP_GROUP_PATH(gid)}`
 export const groupImageUrl = (gid: string) => `${GROUP_IMAGE_CDN}/${gid}.png`
 export const avatarUrl = (wid: string) => `${IMAGE_CDN}/${wid}.png`
 
@@ -54,23 +70,34 @@ export function articlePreview(a: Pick<SomoimArticle, 'at' | 'c'>): string {
 /**
  * 모임 규칙: 관심사(I)=모집중, 자유(F)=마감·진행대기, 모임후기(E)=완료.
  * 펑(취소)된 모임은 열리지 않았으므로 분류와 상관없이 '마감'으로 두고 cancelled 로 표시한다.
+ * 작성자가 분류를 옮기지 않았어도 아래는 마감으로 본다.
+ * - 제목·미리보기에 [마감]·"마감했습니다" 같은 표시 (hasClosedMarker — "마감 임박"은 아님)
+ * - 인원이 다 찼다 (3/3)
+ * - 모임 날짜가 오늘(KST)보다 지났다
  */
-export function articleStatus(a: Pick<SomoimArticle, 'at' | 'c' | 'cat'>): EventStatus {
+export function articleStatus(
+  a: Pick<SomoimArticle, 'at' | 'c' | 'cat'>,
+  ctx: { date?: string | null; participants?: Participants | null; today?: string } = {},
+): EventStatus {
   if (isCancelledTitle(a.at)) return 'closed'
   if (a.cat === 'E') return 'done'
   if (a.cat === 'F' || hasClosedMarker(a.at) || hasClosedMarker(articlePreview(a))) return 'closed'
+  if (ctx.participants && ctx.participants.current >= ctx.participants.max) return 'closed'
+  if (ctx.date && ctx.today && ctx.date < ctx.today) return 'closed'
   if (a.cat === 'I') return 'open'
   return 'closed'
 }
 
 /** 날짜를 찾지 못하면 null */
-export function toScheduleEvent(a: SomoimArticle): ScheduleEvent | null {
+export function toScheduleEvent(a: SomoimArticle, now: Date = new Date()): ScheduleEvent | null {
   const preview = articlePreview(a)
   const text = `${a.at}\n${preview}`
   const posted = articlePostedAt(a)
   const sched = parseSchedule(text, posted)
   if (!sched) return null
   const hasImage = a.ic > 0
+  const participants = parseParticipants(text, posted)
+  const horror = isHorrorText(text)
   return {
     id: a.id,
     title: stripStatusMarkers(a.at) || a.at.trim(),
@@ -81,16 +108,18 @@ export function toScheduleEvent(a: SomoimArticle): ScheduleEvent | null {
     date: sched.date,
     startTime: sched.startTime,
     endTime: sched.endTime,
-    status: articleStatus(a),
+    status: articleStatus(a, { date: sched.date, participants, today: toKstDateString(now) }),
     cancelled: isCancelledTitle(a.at),
-    horror: isHorrorText(text),
+    horror,
+    roles: horror ? parseHorrorRoles(text) : null,
     category: toCategory(a.cat),
     thumbnailUrl: hasImage ? articleImageUrl(a.id, 'small') : null,
     imageUrl: hasImage ? articleImageUrl(a.id, 'full') : null,
-    participants: parseParticipants(text, posted),
+    participants,
     members: parseMembers(text, posted),
     commentCount: a.rn,
     postedAt: toKstIso(posted),
+    groupId: a.gid || DEFAULT_GROUP_ID,
     articleUrl: groupUrl(a.gid || DEFAULT_GROUP_ID),
     appUrl: groupAppUrl(a.gid || DEFAULT_GROUP_ID),
   }
@@ -102,6 +131,8 @@ export function toUndatedPost(a: SomoimArticle): UndatedPost {
   const posted = articlePostedAt(a)
   const time = parseTime(text)
   const hasImage = a.ic > 0
+  const participants = parseParticipants(text, posted)
+  const horror = isHorrorText(text)
   return {
     id: a.id,
     title: stripStatusMarkers(a.at) || a.at.trim(),
@@ -110,18 +141,21 @@ export function toUndatedPost(a: SomoimArticle): UndatedPost {
     author: a.wn,
     authorAvatarUrl: avatarUrl(a.wid),
     whenHint: parseWhenHint(text),
+    dateConflict: findDateConflict(text, posted),
     startTime: time?.startTime ?? null,
     endTime: time?.endTime ?? null,
     postedAt: toKstIso(posted),
-    status: articleStatus(a),
+    status: articleStatus(a, { participants }),
     cancelled: isCancelledTitle(a.at),
-    horror: isHorrorText(text),
+    horror,
+    roles: horror ? parseHorrorRoles(text) : null,
     category: toCategory(a.cat),
     thumbnailUrl: hasImage ? articleImageUrl(a.id, 'small') : null,
     imageUrl: hasImage ? articleImageUrl(a.id, 'full') : null,
-    participants: parseParticipants(text, posted),
+    participants,
     members: parseMembers(text, posted),
     commentCount: a.rn,
+    groupId: a.gid || DEFAULT_GROUP_ID,
     articleUrl: groupUrl(a.gid || DEFAULT_GROUP_ID),
     appUrl: groupAppUrl(a.gid || DEFAULT_GROUP_ID),
   }
@@ -150,7 +184,7 @@ export function snapshotFromArticles(
   const undated: UndatedPost[] = []
   for (const a of articles) {
     if (EXCLUDED.includes(a.cat)) continue
-    const ev = toScheduleEvent(a)
+    const ev = toScheduleEvent(a, now)
     if (ev) {
       if (cutoff == null || ev.date >= cutoff) events.push(ev)
     } else if (UNDATED_ALLOWED.includes(a.cat)) {

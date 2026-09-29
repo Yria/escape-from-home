@@ -5,6 +5,8 @@ import {
   daysInMonth,
   formatDayLabel,
   formatDayLong,
+  formatConflictDate,
+  conflictNote,
   formatKstClock,
   formatMonthTitle,
   formatTimeRange,
@@ -96,5 +98,12 @@ describe('표시 형식', () => {
 describe('formatDayLong', () => {
   it('월 일 요일', () => {
     expect(formatDayLong('2026-09-29')).toBe('9월 29일 화요일')
+  })
+})
+
+describe('요일이 안 맞는 날짜 표시', () => {
+  it('적힌 요일에 물음표, 실제 요일 안내', () => {
+    expect(formatConflictDate('2026-09-30', 4)).toBe('9월 30일 (목)?')
+    expect(conflictNote('2026-09-30', 3)).toBe('9월 30일은 수요일이라 날짜·요일 중 하나가 틀렸어요')
   })
 })

@@ -1,21 +1,46 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { ScheduleEvent, UndatedPost } from '@escape-from-home/somoim'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { groupAppLaunchUrl, type AppPlatform, type HorrorRoles, type ScheduleEvent, type UndatedPost } from '@escape-from-home/somoim'
 import {
   ArrowSquareOutIcon,
   CalendarBlankIcon,
   DeviceMobileIcon,
+  GhostIcon,
+  SkullIcon,
   ChatCircleIcon,
   ClockIcon,
   UsersIcon,
   XIcon,
 } from '@phosphor-icons/react'
-import { formatDayLabel, formatTimeRange } from '../lib/calendar'
+import { conflictNote, formatConflictDate, formatDayLabel, formatTimeRange } from '../lib/calendar'
 import { HorrorTag, StatusTag } from './StatusTag'
+import { SheetDrip } from './SheetDrip'
 
-/** 앱을 열 수 있는 기기 (iPadOS 는 Mac 으로 보이므로 터치 여부로 가린다) */
-const IS_MOBILE =
-  typeof navigator !== 'undefined' &&
-  (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
+/** 앱을 열 수 있는 기기 (iPadOS 는 Mac 으로 보이므로 터치 여부로 가린다). 데스크톱이면 null */
+const APP_PLATFORM: AppPlatform | null =
+  typeof navigator === 'undefined'
+    ? null
+    : /Android/i.test(navigator.userAgent)
+      ? 'android'
+      : /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+        ? 'ios'
+        : null
+
+/** iOS 에서 앱이 안 열렸다고 보고 소모임 안내 페이지로 넘어가기까지 기다리는 시간 */
+const IOS_FALLBACK_MS = 1500
+
+/**
+ * 소모임 안내 페이지를 거치지 않고 앱의 모임 화면을 바로 연다.
+ * Android 는 intent 주소가 앱이 없을 때 스스로 안내 페이지로 가고, iOS 는 앱이 열려 화면이 가려지지 않으면 넘긴다.
+ */
+function openGroupInApp(event: ReactMouseEvent<HTMLAnchorElement>, item: SheetItem, platform: AppPlatform) {
+  if (platform !== 'ios') return
+  event.preventDefault()
+  const timer = window.setTimeout(() => {
+    if (document.visibilityState === 'visible') window.location.href = item.appUrl
+  }, IOS_FALLBACK_MS)
+  document.addEventListener('visibilitychange', () => window.clearTimeout(timer), { once: true })
+  window.location.href = groupAppLaunchUrl(item.groupId, platform)
+}
 
 /** 달력의 벙이나 날짜를 못 찾은 글 */
 export type SheetItem = ScheduleEvent | UndatedPost
@@ -46,7 +71,7 @@ export function EventSheet({ event, onClose }: Props) {
   return (
     <dialog
       ref={ref}
-      className="sheet"
+      className={`sheet${event?.horror ? ' sheet--horror' : ''}`}
       aria-labelledby="sheet-title"
       onClose={onClose}
       onPointerDown={(e) => {
@@ -71,10 +96,17 @@ function SheetBody({ event: e, onClose }: { event: SheetItem; onClose: () => voi
   const [imgOk, setImgOk] = useState(!!e.imageUrl)
   return (
     <article className="sheet__inner">
+      {e.horror && <SheetDrip seed={e.id} />}
       {imgOk && e.imageUrl && (
         <div className="sheet__hero">
           <img src={e.imageUrl} alt="" referrerPolicy="no-referrer" onError={() => setImgOk(false)} />
         </div>
+      )}
+      {e.horror && (
+        <p className="sheet__warn">
+          <SkullIcon size={16} weight="fill" aria-hidden />
+          공포 테마 벙이에요. 겁이 많다면 쫄·탱 구성을 먼저 확인하세요.
+        </p>
       )}
       <div className="sheet__heading">
         <div className="sheet__status">
@@ -92,7 +124,12 @@ function SheetBody({ event: e, onClose }: { event: SheetItem; onClose: () => voi
       </div>
 
       <dl className="sheet__facts">
-        <Fact icon={<CalendarBlankIcon size={16} />} label="날짜" value={dateLabel(e)} />
+        <Fact
+          icon={<CalendarBlankIcon size={16} />}
+          label="날짜"
+          value={dateLabel(e)}
+          sub={'dateConflict' in e && e.dateConflict ? conflictNote(e.dateConflict.date, e.dateConflict.actualWeekday) : undefined}
+        />
         <Fact icon={<ClockIcon size={16} />} label="시간" value={e.startTime ? formatTimeRange(e.startTime, e.endTime) : '미확인'} />
         <Fact
           icon={<UsersIcon size={16} />}
@@ -101,6 +138,7 @@ function SheetBody({ event: e, onClose }: { event: SheetItem; onClose: () => voi
           sub={e.members?.length ? e.members.join(' · ') : undefined}
         />
         <Fact icon={<ChatCircleIcon size={16} />} label="댓글" value={`${e.commentCount}개`} />
+        {e.horror && <RolesFact roles={e.roles ?? null} />}
       </dl>
 
       <div className="sheet__author">
@@ -116,8 +154,12 @@ function SheetBody({ event: e, onClose }: { event: SheetItem; onClose: () => voi
         <p className="sheet__note">
           게시판 미리보기는 앞부분만 보입니다. 소모임은 글 하나로 바로 가는 링크를 주지 않아서 모임 게시판으로 이동합니다.
         </p>
-        {IS_MOBILE && e.appUrl ? (
-          <a className="btn btn-primary sheet__cta" href={e.appUrl}>
+        {APP_PLATFORM && e.groupId ? (
+          <a
+            className="btn btn-primary sheet__cta"
+            href={groupAppLaunchUrl(e.groupId, APP_PLATFORM)}
+            onClick={(ev) => openGroupInApp(ev, e, APP_PLATFORM)}
+          >
             소모임 앱에서 열기
             <DeviceMobileIcon size={16} aria-hidden />
           </a>
@@ -132,9 +174,10 @@ function SheetBody({ event: e, onClose }: { event: SheetItem; onClose: () => voi
   )
 }
 
-/** 날짜를 못 찾은 글은 '언제쯤' 단서를, 그것도 없으면 미확인 */
+/** 날짜를 못 찾은 글은 요일이 안 맞은 날짜 → '언제쯤' 단서 → 미확인 순 */
 function dateLabel(e: SheetItem): string {
   if ('date' in e) return formatDayLabel(e.date)
+  if (e.dateConflict) return formatConflictDate(e.dateConflict.date, e.dateConflict.writtenWeekday)
   return e.whenHint ?? '미확인'
 }
 
@@ -148,6 +191,42 @@ function Fact({ icon, label, value, sub }: { icon: ReactNode; label: string; val
       <dd>
         {value}
         {sub && <span className="sheet__fact-sub">{sub}</span>}
+      </dd>
+    </div>
+  )
+}
+
+const WANTED_LABEL: Record<NonNullable<HorrorRoles['wanted']>, string> = {
+  jjol: '쫄 찾는 중',
+  tang: '탱 찾는 중',
+  any: '쫄·탱 무관',
+}
+
+/** 공포 벙의 쫄(겁 많은 사람)·탱(앞장서는 사람) 구성. 적힌 게 없으면 미확인 */
+function RolesFact({ roles }: { roles: HorrorRoles | null }) {
+  const chips = [
+    roles?.jjol != null && `쫄 ${roles.jjol}명`,
+    roles?.tang != null && `탱 ${roles.tang}명`,
+    roles?.wanted && WANTED_LABEL[roles.wanted],
+  ].filter((c): c is string => !!c)
+  return (
+    <div className="sheet__roles">
+      <dt>
+        <span aria-hidden>
+          <GhostIcon size={16} />
+        </span>
+        쫄·탱
+      </dt>
+      <dd>
+        {chips.length ? (
+          chips.map((c) => (
+            <span key={c} className="role-chip">
+              {c}
+            </span>
+          ))
+        ) : (
+          <span className="sheet__roles-none">글에 적혀 있지 않아요</span>
+        )}
       </dd>
     </div>
   )

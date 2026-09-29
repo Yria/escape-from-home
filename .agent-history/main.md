@@ -1005,6 +1005,245 @@ From now on, every push to main redeploys automatically. If you don't need the o
 
 **Prompt**: 필터의 카운터가 월별로 되어있는데 전체로 해줘 이것도 끝나면 커밋후 배포
 
+**Answer**: Both changes are committed and live at https://escape-from-home.vercel.app/: you can add the calendar to your home screen as an app, and the filter now counts everything instead of just the month you're viewing.
+
+## 1. Home-screen app (`f8e2f16`)
+- **Name**: "방탈출 캘린더" in full, and **"방탈출"** under the icon.
+- **Opens without the address bar**, portrait only, in the dark navy theme color.
+- **New icon**: a purple keyhole on dark navy, the Nocturne colors. The favicon was changed to match.
+- **Icon files**: sizes for Android (192, 512, and a version that fits circular or rounded icon masks) and for iPhone (180).
+- **iPhone**: the page draws behind the status bar, so I pushed the top header down to leave room for it.
+- **No service worker**: Chrome doesn't need one to install a web app anymore, and a cached copy could show old events. The catch is that the app won't open when you're offline.
+
+On the live site, the manifest and all 4 icons load, and the manifest link is in the page.
+
+**How to add it**
+- **iPhone (Safari)**: tap Share, then **홈 화면에 추가**.
+- **Android (Chrome)**: open the ⋮ menu, then **홈 화면에 추가** or **앱 설치**.
+- **Desktop (Chrome/Edge)**: click the install icon at the right end of the address bar.
+
+## 2. Filter counts cover everything (`0189d7c`)
+- The numbers now count everything collected, whatever month you're looking at.
+- The filter also applies to the "날짜 미확인" list, so those posts are included in the counts.
+- On the live site it shows **전체 37 / 모집중 6 / 마감 13 / 공포 4**, and the numbers stay the same when you move from September to October.
+
+Sources: [Revisiting Chrome's installability criteria](https://developer.chrome.com/blog/update-install-criteria) · [Making PWAs installable - MDN](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable) · [What Makes A PWA Installable?](https://modernwebweekly.substack.com/p/what-makes-a-pwa-installable)
+
+---
+
+## #39
+
+**Prompt**: go on
+
+**Answer**: _(응답 대기 중…)_
+
+---
+
+## #40
+
+**Prompt**: go on
+
+**Answer**: Nothing is left over from the last requests. Both changes, the home-screen app and the filter counts across all events, are committed, pushed and live at https://escape-from-home.vercel.app/.
+
+The only uncommitted change is the history file (`.agent-history/main.md`), which the hook updates after every reply. It's staged and will go in with the next commit.
+
+Some follow-ups I mentioned earlier, if you want to pick one:
+1. **Better open/closed detection**: only treat "마감" as closed when it's marked like `[마감]` or says it's finished, count a post as closed once its headcount is full, and close out posts whose date has passed.
+2. **Horror theme list**: catch horror posts that never use a horror word, such as "괴록 가실 분".
+3. **Role counts**: read `쫄3` or `쫄1 탱2` as the number of each role.
+4. **Turn off the old GitHub Pages site**: in the GitHub repo, **Settings → Pages**.
+
+Tell me which one to do, or what else you need.
+
+---
+
+## #41
+
+**Prompt**: 개선사항 진행해.
+1. 그대로 진행
+2. 이건 패스.
+3. 공포 테마의 경우 해당 개선사항을 반영했으면 좋겠음. 모달도 조금 디자인 색다르게 해서 공포테마임을 확실하게 알 수 있게.
+4. 이미 진행함.
+
+추가로 캘린더 날짜의 숫자가 잘 안보여서 가독성 올렸음 좋겠음.
+
+**Answer**: _(응답 대기 중…)_
+
+---
+
+## #42
+
+**Prompt**: 마감된 일정은 캘린더 내에서 표시를 좀 dim 처리해줘
+
+**Answer**: All four changes are done and checked in the browser, including the dimming you asked for partway through. Tests pass (191 in somoim, 23 in the calendar), along with types and lint. Everything is staged but not yet committed or deployed.
+
+## 1. Better open/closed detection
+Posts in 관심사 (normally 모집중) are now shown as 마감 in these cases:
+- **The text says it's closed**: `[마감]`, `(마감)`, "마감했습니다", "모집 마감". Phrases like "마감 임박", "마감되면 공지할게요" or "모집 마감 예정" no longer count as closed.
+- **The headcount is full**, e.g. 3/3.
+- **The meeting date has passed.** On the day itself it still counts as 모집중.
+
+**No post changes status on current data.** None of today's 55 posts are written in a way these rules catch. The rules apply as new posts come in.
+
+## 3. Horror roles, and a distinct sheet for horror posts
+- **Role parsing**:
+  - Counts like "쫄3" and "탱 1명".
+  - The role being sought: "쫄을 찾습니다" and "쫄 우선" → looking for 쫄; "쫄탱 가리지 않습니다" and "구분없이" → either is fine.
+  - On current data, "싸패방" reads as 쫄 3명 and "층간소음" reads as 쫄·탱 무관.
+- **Horror detail sheet**:
+  - A blood-drip band animates across the top.
+  - Red-tinted background and a red-toned photo.
+  - A skull warning line.
+  - A red glow on the title, with red accents on the info box, buttons and backdrop.
+  - A **쫄·탱** row shows the role chips, or says the post doesn't mention roles.
+
+## Calendar date numbers
+- They're now larger (12px) and bold.
+- On cells with posters, the number sits on a dark pill so it's readable on any image.
+- Today's date uses a brighter accent pill.
+
+## Dimming closed events
+- Posters and title labels for events that are 마감, 완료 or 펑 are shown greyed out and darker.
+- If every event on a day has ended, the cell background is darker too, so days with 모집중 events stand out.
+
+Should I commit and deploy?
+
+---
+
+## #43
+
+**Prompt**: 딥링크로 게시물로 직접 이동하게 하고싶은데 이거 분석할 방법 잇을까
+
+**Answer**: 네, 분석할 수 있습니다. 먼저 웹 쪽을 확인해 봤는데, 웹만으로는 게시글 딥링크를 찾을 수 없었습니다. 남은 길은 앱 쪽을 분석하는 것입니다.
+
+## 웹에서 확인한 것
+`/m/deeplink/{gid}` 페이지의 Next.js 코드를 받아서 뜯어보니, 앱을 여는 주소가 이렇게 만들어집니다.
+
+- iOS: `somoim://com.friendscube.Somoim?type=63&gid={gid}`
+- Android: `intent://com.friendscube.Somoim?type=63&gid={gid}#Intent;scheme=somoim;...;package=com.friendscube.somoim;end`
+
+즉 **앱은 `type=숫자` 로 어느 화면을 열지 정합니다.** `63`이 모임 화면입니다. 게시글 화면에도 번호가 따로 있을 가능성이 높지만, 웹 코드에는 `type=63` 하나뿐입니다. 공유 기능 코드도, 게시글 id를 넣는 자리(`aid=` 같은 것)도 없습니다. `assetlinks.json`과 `apple-app-site-association`도 여전히 404라서, 일반 https 주소로 앱을 여는 방식(유니버설 링크/앱 링크)도 쓸 수 없습니다.
+
+## 게시글 번호를 알아내는 방법 (쉬운 순서)
+
+1. **앱에서 게시글 공유하기 (가장 쉬움)**: 앱에서 벙 글 하나를 "공유 → 링크 복사" 해서 붙여넣어 보세요. 주소에 `type=`이나 글 id가 들어 있으면 그대로 따라 만들면 됩니다. 단축 링크라면 `curl -sIL <링크>`로 끝까지 따라가 보면 됩니다.
+2. **폰에서 번호 바꿔 넣어 보기**: Android라면 `adb shell am start -a android.intent.action.VIEW -d "somoim://com.friendscube.Somoim?type=N&gid=...&aid=..."` 식으로 `type`과 파라미터 이름을 바꿔 가며 어떤 화면이 열리는지 봅니다. 번호를 모르는 채로 찍는 방식이라 오래 걸릴 수 있습니다.
+3. **Android 앱 코드 뜯어보기 (가장 확실함)**: `com.friendscube.somoim` APK를 jadx로 디컴파일합니다. 그다음 `AndroidManifest.xml`에서 `somoim` 스킴을 받는 Activity를 찾고, 그 코드에서 `getQueryParameter("type")`을 따라가면 번호별로 어떤 화면을 여는지 목록이 나옵니다. 푸시 알림도 같은 번호를 쓰는 경우가 많아서 게시글·댓글 알림 번호를 함께 찾을 수 있습니다.
+4. **앱 통신 엿보기 (보조 수단)**: mitmproxy나 Charles로 앱이 서버와 주고받는 내용을 봅니다. 게시글 상세 API나 공유 링크를 만드는 API가 따로 있는지 알 수 있습니다. 앱이 인증서 고정(pinning)을 쓰면 막힙니다.
+
+1번을 먼저 해 보시길 권합니다. 1분이면 끝나고, 결과가 나오면 거기서 멈추면 됩니다. 공유 링크가 모임 주소로만 나오면 3번이 가장 확실합니다. 다만 3번은 남의 앱 APK를 받아서 디컴파일하는 일이라, 원하시는지 확인한 뒤에 진행하겠습니다.
+
+게시글 번호를 찾으면 `packages/somoim/src/snapshot.ts:30`의 `groupAppUrl` 옆에 게시글용 주소를 만드는 함수를 하나 추가하면 됩니다. 앱이 없는 사람은 지금처럼 모임 페이지로 보내면 됩니다.
+
+공유 링크를 붙여 주시거나 APK 분석을 진행하라고 하시면 이어서 하겠습니다.
+
+---
+
+## #44
+
+**Prompt**: 앱에 모임채팅방에 공유하기만 있지 외부공유하기가 없네
+
+**Answer**: 그럼 공유 링크로 알아내는 방법은 안 되네요. 남은 방법은 앱 코드를 직접 보는 것이고, 이 Mac에는 `adb`가 이미 깔려 있어서 준비가 거의 끝나 있습니다.
+
+## 진행 순서
+1. **폰에서 APK 꺼내기**: 소모임이 설치된 Android 폰을 USB로 연결하고 USB 디버깅을 켜 주세요. 폰에 설치된 앱에서 직접 꺼내므로 외부 사이트에서 APK를 받을 필요가 없습니다.
+[코드 블록 생략]
+2. **디컴파일**: `brew install jadx`로 jadx를 설치한 뒤 소스로 풀어냅니다.
+3. **분석**
+   - `AndroidManifest.xml`에서 `somoim` 스킴을 받는 Activity를 찾습니다.
+   - 그 Activity에서 `type` 값을 어떻게 나누어 처리하는지 따라가서, `63` 외에 게시글·댓글 화면 번호와 필요한 파라미터 이름을 알아냅니다.
+   - 채팅방에 게시글을 공유할 때 메시지에 무엇이 담기는지도 같이 봅니다. 채팅에서 공유된 글을 누르면 그 글이 열리므로, 게시글을 여는 방법이 그 코드 안에 있을 가능성이 높습니다.
+4. **실제 확인**: 찾은 주소로 `adb shell am start -d "somoim://...type=N&gid=...&..."`를 실행해서 해당 게시글이 바로 열리는지 확인합니다.
+5. 열리면 `snapshot.ts`에 게시글용 주소를 만드는 함수를 추가합니다.
+
+## 부탁드릴 것
+- 폰을 연결하고 USB 디버깅을 켠 뒤 알려 주세요. 연결은 `adb devices`로 제가 확인하겠습니다.
+- 소모임 앱의 APK를 받아 디컴파일하는 작업입니다. 앱을 수정하거나 배포하지 않고 딥링크 규칙만 읽어 오는 용도인데, 이대로 진행해도 괜찮은지 알려 주세요.
+
+Android 폰이 없고 iPhone만 있으면 이 방법은 쓸 수 없습니다. 그때는 외부 사이트에서 APK를 받아 디컴파일만 하는 방법으로 바꿔야 합니다.
+
+---
+
+## #45
+
+**Prompt**: ~/Downloads 폴더에 소모임+-+취미모임+동호회+앱+_+우리동네+취미+모임_5.8.3_APKPure.apk 이런 이름으로 있는 apk 인데 분석가능?
+
+**Answer**: 모바일의 "소모임 앱에서 열기" 버튼이 이제 소모임 웹 페이지를 거치지 않고 앱의 모임 화면을 바로 엽니다. 타입 검사와 테스트는 모두 통과했지만, 실제 폰에서 앱이 열리는지는 아직 확인하지 못했습니다(연결된 기기가 없었습니다).
+
+**기기별 동작**
+- **Android**: `intent://…?type=63&gid=…` 주소로 앱을 엽니다. 앱이 없으면 소모임 안내 페이지 `/m/deeplink/{gid}`(스토어로 연결)로 자동으로 넘어갑니다.
+- **iOS**: `somoim://…?type=63&gid=…` 주소로 엽니다. iOS는 앱이 없을 때 대신 갈 곳을 주소에 담을 수 없습니다. 그래서 1.5초 안에 화면이 가려지지 않으면(= 앱이 안 열리면) 같은 안내 페이지로 보냅니다.
+- **데스크톱**: 지금처럼 웹 모임 페이지를 엽니다.
+
+**바뀐 파일**
+- `packages/somoim/src/snapshot.ts`: 기기에 맞는 앱 주소를 만드는 `groupAppLaunchUrl(gid, 'android' | 'ios')`를 추가했습니다.
+- `packages/somoim/src/types.ts`: `ScheduleEvent`와 `UndatedPost`에 `groupId` 필드를 추가하고, 스냅샷을 만들 때 채우도록 했습니다.
+- `playground/calendar/src/components/EventSheet.tsx`: 기기를 android / ios / 데스크톱으로 구분하고, 버튼이 새 주소를 쓰도록 바꿨습니다. iOS용 대체 이동도 여기 있습니다.
+- `api.test.ts`에 주소 형식과 `groupId` 테스트를 추가했습니다. README에는 디컴파일로 확인한 내용(게시글을 여는 딥링크 번호는 없음)을 적었습니다.
+
+**검증**
+- somoim 테스트 198개, calendar 테스트 24개, `tsc`, eslint 모두 통과했습니다.
+- 로컬 `events.json`을 다시 만들어 `groupId`가 들어간 것을 확인했습니다. 이 파일은 git에 올라가지 않는 로컬 파일입니다.
+- 폰에서는 Android에 설치 여부별로 한 번씩, iOS Safari와 카카오톡 인앱 브라우저에서 확인해 주세요. 카카오톡 같은 인앱 브라우저는 앱을 여는 주소를 막는 경우가 있습니다.
+
+바뀐 파일은 staging만 하고 커밋은 하지 않았습니다. 원래 있던 미커밋 변경도 staging에 함께 들어가 있습니다.
+
+---
+
+## #46
+
+**Prompt**: 파싱해서 분석한 날짜가 실제 월일과 다르면 날짜찾지 못한 일정으로 분류해줘
+
+**Answer**: 분석이 끝났습니다. 결론은, **이 앱(5.8.3)에는 밖에서 특정 게시글을 바로 여는 딥링크가 없습니다.**
+
+## 앱으로 들어오는 길은 세 가지뿐
+- **`somoim://com.friendscube.Somoim?type=N&...`**: 카카오 공유 링크도 같은 형식으로 들어와 여기서 처리됩니다. 받는 `type`은 40~43, 50~52, 60~63뿐이고, 이 가운데 게시글 id를 읽는 번호는 없습니다. 주로 쓰는 번호는 이렇습니다.
+  - `63`: 모임 화면 (`gid`)
+  - `52`: 모임 일정 (`gid`, `e_d`, `e_t`)
+  - `50`·`51`·`61`·`62`: 초대, 모임 정보 (`gid`, `it`, `gn`, `ge`)
+- **`https://somoim.friendscube.com/g/...`**: 주소의 마지막 부분을 모임 id로 보고 `type=63`으로 바꿔서 엽니다. 이것도 모임까지만 갑니다.
+- **다른 앱에서 텍스트 공유(`SEND text/plain`)**: 게시글과는 관계없습니다.
+
+## 게시글을 여는 코드는 푸시 알림에만 있음
+게시글 id(`aid`)를 받아 글을 여는 코드는 `FCTabBarFragmentActivity`의 푸시 알림 처리 부분(알림 번호 40, 41, 52, 422, 440, 441)에만 있습니다. 그런데 이 화면은 manifest에서 외부 호출을 받지 않도록 되어 있습니다. 소모임 서버가 보낸 알림만 이 화면을 열 수 있고, 웹 링크나 `adb`로는 호출할 수 없습니다. 채팅방 공유도 같은 앱 안에서만 동작하는 길이라 밖에서 쓸 수 없습니다.
+
+## 지금 할 수 있는 최선
+- **모바일에서 모임 화면을 바로 열기**: 지금은 `/m/deeplink/{gid}` 웹 페이지를 한 번 거칩니다. 대신 Android는 `intent://com.friendscube.Somoim?type=63&gid=...#Intent;scheme=somoim;package=com.friendscube.somoim;end`, iOS는 `somoim://...type=63&gid=...`를 직접 쓰면 중간 페이지 없이 앱이 열립니다. 앱이 없으면 스토어로 보내지 않고 실패하므로 그 경우 처리가 필요합니다.
+- **글을 찾기 쉽게 하기**: 모임 화면에서 사용자가 게시판으로 가서 글을 찾아야 합니다. 그래서 캘린더의 버튼 옆에 글 제목을 복사하는 기능을 두거나, "게시판에서 'OO' 글" 같은 안내를 보여 주는 방법이 현실적입니다.
+
+앱 버전이 올라가면 게시글용 `type`이 추가될 수 있으니, 새 APK가 나오면 `FCAppActivity`의 `X(Uri)` 부분만 다시 보면 됩니다. 위 두 가지 중 적용하고 싶은 것이 있으면 말씀해 주세요.
+
+---
+
+## #47
+
+**Prompt**: 모바일에서 모임화면을 바로열기 만 적용해줘.
+
+**Answer**: Posts whose parsed date looks wrong now go to "날짜 미확인" instead of the calendar. I took "wrong" to mean **the weekday written in the post doesn't match the date's actual weekday**, e.g. "9/30(목)" when 9/30 is a Wednesday. If you meant a different case, tell me which. Tests pass (196 in somoim, 24 in the calendar), along with types and lint.
+
+**What changed**
+- **Before**: when the weekday didn't match, the code quietly kept the date (and could shift it to another year), then put the post on the calendar.
+- **Now**: if the weekday doesn't fit the date in any plausible year, the post goes to "날짜 미확인". Posts that don't state a weekday stay on the calendar as before.
+- **List row**: shows "9월 30일 (목)? 요일 불일치" in amber.
+- **Detail sheet**: the 날짜 field shows "9월 30일 (목)?", and underneath, "9월 30일은 수요일이라 날짜·요일 중 하나가 틀렸어요".
+- **Still works as before**: late 후기 posts whose weekday matches a year within about 6 months still go to that year. Dates that don't exist, like 9/31, were already sent to 날짜 미확인.
+- **Changed test**: one existing test assumed "keep the date even when the weekday is a typo". I changed it to expect 날짜 미확인, since that's now the intended behavior.
+
+**Check against real data**
+- **No mismatches right now**: none of the 55 current posts or the 140 sample posts has a weekday that doesn't match its date.
+- **No misparsed dates either**: every parsed date appears in its post and falls within a sensible range of the posting date.
+- **Checked with a test post**: since there's no real case, I injected one in the browser to confirm the list row and sheet above display correctly.
+
+If you've seen a specific post with a wrong date, send me its title and I'll trace why.
+
+The earlier changes (status rules, horror sheet, date number readability, dimming) are all staged together with this and not yet committed or deployed. Should I commit and deploy?
+
+---
+
+## #48
+
+**Prompt**: 여기까지 커밋후 배포
+
 **Answer**: _(응답 대기 중…)_
 
 ---

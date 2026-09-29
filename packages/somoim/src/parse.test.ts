@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isCancelledTitle, isHorrorText, normalizeText, parseMembers, parseTime, parseWhenHint, parseParticipants, parseSchedule, stripStatusMarkers } from './parse.ts'
+import { findDateConflict, hasClosedMarker, isCancelledTitle, isHorrorText, normalizeText, parseHorrorRoles, parseMembers, parseTime, parseWhenHint, parseParticipants, parseSchedule, stripStatusMarkers } from './parse.ts'
 
 const at = (iso: string) => new Date(iso)
 const POSTED = at('2026-09-20T12:00:00+09:00')
@@ -154,13 +154,14 @@ describe('parseSchedule — 연도 추정', () => {
     ], dec)
   })
 
-  it('요일 오타로 일정이 1년 가까이 과거·먼 미래로 가지 않는다', () => {
+  it('요일이 어느 해와도 그럴듯하게 맞지 않으면 1년을 옮기지 않고 날짜 미확인으로 둔다', () => {
     const posted = at('2026-09-28T12:00:00+09:00')
-    check([
-      ['10/31 (금)', '2026-10-31'], // 2026-10-31 은 토요일, 2025-10-31(금)은 332일 전
-      ['10/10(금) 방탈', '2026-10-10'], // 2025-10-10(금)은 353일 전
-      ['1/3(토) 신년벙', '2027-01-03'], // 2026-01-03(토)은 268일 전 → 60일 규칙 유지
-    ], posted)
+    // 2026-10-31 은 토요일, 2025-10-31(금)은 332일 전 — 옮기기엔 너무 멀다
+    expect(parseSchedule('10/31 (금)', posted)).toBeNull()
+    // 2025-10-10(금)은 353일 전
+    expect(parseSchedule('10/10(금) 방탈', posted)).toBeNull()
+    // 2026-01-03(토)은 268일 전이라 옮기지 않고, 2027-01-03 은 일요일
+    expect(parseSchedule('1/3(토) 신년벙', posted)).toBeNull()
   })
 
   it('요일이 다른 해(±1)와 맞으면 그 해', () => {
@@ -438,5 +439,59 @@ describe('parseMembers — 인원 뒤 참여자 이름', () => {
     expect(parseMembers('10/3 강남 벙\n\n2/4 모집합니다')).toEqual([])
     expect(parseMembers('9/29 건대 더메이즈 턴, 마지막 문')).toEqual([])
     expect(parseMembers('인원 없음')).toEqual([])
+  })
+})
+
+describe('hasClosedMarker — 모집이 끝났다는 표시만', () => {
+  it.each(['[마감] 강남', '(마감)10/2(금) 강남', '【급벙마감】 홍대', '마감) 9/29 건대', '수다방 쫄3 마감했습니다', '인원 다 차서 마감됐어요', '마감완료', '모집 마감 & 진행 대기중', '(펑) 부평 크씬'])(
+    '%s → 마감',
+    (t) => {
+      expect(hasClosedMarker(t)).toBe(true)
+    },
+  )
+  it.each(['마감 임박! 한 자리 남았어요', '마감되면 공지할게요', '모집 마감 예정은 금요일', '인원 차면 마감합니다', '마감 전에 신청해 주세요', '10/3 강남 시계탑 도둑'])(
+    '%s → 아님',
+    (t) => {
+      expect(hasClosedMarker(t)).toBe(false)
+    },
+  )
+})
+
+describe('parseHorrorRoles — 쫄/탱', () => {
+  it.each([
+    ['수다방 쫄3 마감했습니다', { jjol: 3, tang: null, wanted: null }],
+    ['쫄1 탱2 모집', { jjol: 1, tang: 2, wanted: null }],
+    ['탱 1명 구해요', { jjol: null, tang: 1, wanted: 'tang' }],
+    ['쫄탱 가리지 않습니다.', { jjol: null, tang: null, wanted: 'any' }],
+    ['쫄, 탱 상관없이 퇴근하고 방탈', { jjol: null, tang: null, wanted: 'any' }],
+    ['쫄/탱 구분없이 구합니다.', { jjol: null, tang: null, wanted: 'any' }],
+    ['공포테마는 쫄과 가라고 배웠습니다.\n쫄을 찾습니다', { jjol: null, tang: null, wanted: 'jjol' }],
+    ['(제 즐거움을 위해) 쫄 우선 받을게요!', { jjol: null, tang: null, wanted: 'jjol' }],
+  ] as const)('%s', (text, roles) => {
+    expect(parseHorrorRoles(text)).toEqual(roles)
+  })
+  it('역할 얘기가 없으면 null', () => {
+    expect(parseHorrorRoles('극쫄이니 탱껴서 3인으로')).toBeNull()
+    expect(parseHorrorRoles('스토리가 쫄깃한 공포 테마')).toBeNull()
+    expect(parseHorrorRoles('탱드위치로 안락하게')).toBeNull()
+  })
+})
+
+describe('요일이 날짜와 안 맞으면 날짜 미확인', () => {
+  const posted = new Date('2026-09-20T12:00:00+09:00')
+  it('9/30(목) — 9/30 은 수요일', () => {
+    expect(parseSchedule('9/30(목) 홍대 오시리스\n\n19:30', posted)).toBeNull()
+    expect(findDateConflict('9/30(목) 홍대 오시리스', posted)).toEqual({ date: '2026-09-30', writtenWeekday: 4, actualWeekday: 3 })
+  })
+  it('10월 3일 금요일 — 10/3 은 토요일', () => {
+    expect(parseSchedule('10월 3일 금요일 강남', posted)).toBeNull()
+  })
+  it('요일이 맞거나 안 적혀 있으면 그대로', () => {
+    expect(parseSchedule('9/30(수) 홍대 오시리스', posted)?.date).toBe('2026-09-30')
+    expect(parseSchedule('9/30 홍대 오시리스', posted)?.date).toBe('2026-09-30')
+    expect(findDateConflict('9/30(수) 홍대', posted)).toBeNull()
+  })
+  it('없는 날짜도 달력에 올리지 않는다', () => {
+    expect(parseSchedule('9/31(목) 강남', posted)).toBeNull()
   })
 })

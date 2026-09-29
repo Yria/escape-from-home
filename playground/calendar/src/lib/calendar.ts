@@ -143,3 +143,15 @@ export function isSameMonth(key: string, ym: YearMonth): boolean {
   const { year, month } = parseDateKey(key)
   return year === ym.year && month === ym.month
 }
+
+/** 요일이 안 맞는 날짜: '2026-09-30' + 적힌 목(4) → '9월 30일 (목)?' */
+export function formatConflictDate(key: string, writtenWeekday: number): string {
+  const { month, day } = parseDateKey(key)
+  return `${month}월 ${day}일 (${WEEKDAY_LABELS[writtenWeekday]})?`
+}
+
+/** '9월 30일은 수요일이라 …' */
+export function conflictNote(key: string, actualWeekday: number): string {
+  const { month, day } = parseDateKey(key)
+  return `${month}월 ${day}일은 ${WEEKDAY_LABELS[actualWeekday]}요일이라 날짜·요일 중 하나가 틀렸어요`
+}
