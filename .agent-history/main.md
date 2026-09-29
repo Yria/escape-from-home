@@ -1244,6 +1244,125 @@ The earlier changes (status rules, horror sheet, date number readability, dimmin
 
 **Prompt**: 여기까지 커밋후 배포
 
+**Answer**: Committed, pushed and deployed: `a436788` is live at https://escape-from-home.vercel.app/.
+
+I checked the live site after the deploy:
+- **Data**: collected fresh on every request from the Seoul region, with no fallback marker.
+- **New fields**: `roles` and `dateConflict` are in the response.
+- **Role parsing**: 층간소음 reads as 쫄·탱 무관, and 싸패방 as 쫄 3명.
+- **Styles**: the new CSS is live, including the horror sheet and the dimmed cells.
+
+The deploy includes:
+- **Status rules**: "마감 임박" is no longer treated as closed. A post also counts as closed when its headcount is full or its date has passed.
+- **Horror**: role parsing (쫄/탱), and a distinct detail sheet with the blood drip, red tones and skull warning.
+- **Weekday mismatch**: posts whose written weekday doesn't match the date go to "날짜 미확인", with an explanation in the list and sheet.
+- **Calendar**: larger, bold date numbers, and finished events (마감, 완료, 펑) are dimmed.
+
+---
+
+## #49
+
+**Prompt**: 푸쉬메세지론 이동가능하다매. 방법이 아예없나?
+
+**Answer**: 웹 링크로 게시글까지 바로 가는 방법은 없습니다. 푸시 알림이 게시글을 열 수 있는 것은 앱이 자기 자신에게 여는 길이라서, 밖에서는 같은 길을 쓸 수 없습니다.
+
+## 푸시 알림이 게시글을 여는 과정
+1. 소모임 서버가 FCM(구글 푸시 서비스)으로 알림을 보냅니다. 여기에 알림 종류(`pt`)와 게시글 id(`aid`)가 들어 있습니다.
+2. 앱의 `FCFirebaseMessagingService` → `FCFcmWorker` → `rh/b.java`가 알림을 받아 화면에 띄웁니다. 이때 알림을 누르면 탭 화면(`FCTabBarFragmentActivity`)이 열리도록 설정해 둡니다.
+3. 사용자가 알림을 누르면 탭 화면이 게시글 id를 읽어 그 글을 엽니다.
+
+탭 화면은 외부에서 호출할 수 없게 되어 있습니다. 알림은 앱이 직접 만든 것이라 예외로 열 수 있는 것입니다.
+
+## 우회할 수 있는지 확인한 것
+| 시도 | 결과 |
+|---|---|
+| `somoim://…?type=40&aid=…` | 딥링크 `type` 40~43은 푸시 알림 번호와 이름만 같고 실제로는 분석 로그(`kakaoMenu` 등)만 남깁니다. `aid`는 읽지 않습니다. |
+| `intent://…;S.aid=…;i.pt=40;end`로 외부에서 받는 화면(`FCAppActivity`)에 값 실어 보내기 | `FCAppActivity`는 탭 화면을 열 때 새 intent를 만들고 `pt` 50/10/11과 `gid`만 넣습니다. 전달한 값은 탭 화면까지 넘어가지 않습니다. |
+| 가짜 푸시 알림 보내기 | 소모임 서버의 FCM 인증 정보가 있어야 합니다. 앱의 푸시 수신 부분도 Google Play 서비스에서 온 것만 받으므로 흉내 낼 수 없습니다. |
+| `adb shell am start -n …/FCTabBarFragmentActivity --es aid …` | 외부 호출이 막힌 화면이라 루팅한 본인 폰에서만 됩니다. 캘린더를 쓰는 다른 사람에게는 쓸 수 없습니다. |
+
+## 남는 길
+- **소모임이 기능을 추가하는 것**: 딥링크에 게시글용 `type`을 추가해 달라고 소모임 고객센터에 요청하는 방법입니다. 앱은 이미 게시글 id로 글을 여는 코드를 갖고 있어서, 딥링크 처리 부분에 분기를 하나 추가하면 되는 규모입니다.
+- **소모임이 진짜 알림을 보내게 하기**: 예를 들어 글에 댓글을 달면 글쓴이나 관련된 사람에게 알림이 갑니다. 하지만 원하는 사람에게 원하는 때에 링크처럼 보낼 수는 없습니다.
+
+지금 적용한 "모임 화면 바로 열기"가 현재 앱에서 할 수 있는 최선입니다. 새 앱 버전이 나오면 `FCAppActivity.X(Uri)`에 게시글용 번호가 생겼는지만 다시 확인하면 됩니다.
+
+---
+
+## #50
+
+**Prompt**: 딥링크리스트는 매니패스트에 정의한것만 사용가능?
+
+**Answer**: 반은 맞습니다. 매니페스트는 **밖에서 앱으로 들어올 수 있는 입구**를 정하고, 그 입구로 들어온 뒤 **실제로 무엇을 할지는 앱 코드**가 정합니다. 두 조건을 모두 통과해야 딥링크가 동작합니다.
+
+## 1단계: 매니페스트가 입구를 정함
+- 외부 공개로 표시된 Activity(`android:exported="true"`)만 다른 앱이나 브라우저가 열 수 있습니다. 소모임은 targetSdk 36이라 이 표시가 반드시 있어야 합니다.
+- 그 Activity의 `intent-filter`(scheme, host, path)에 맞는 주소만 링크를 눌렀을 때 앱으로 들어옵니다.
+- 공개 Activity라면 filter와 상관없이 **패키지명과 클래스명을 직접 지정해서 여는 것**도 가능합니다. 예를 들면 `adb shell am start -n 패키지/클래스` 같은 방식입니다. 이때 이름을 붙인 값(extras)도 함께 보낼 수 있습니다.
+
+## 2단계: 앱 코드가 무엇을 할지 정함
+- filter는 모양만 확인합니다. `somoim://com.friendscube.Somoim?아무값`은 전부 입구를 통과합니다.
+- 통과한 뒤 어떤 화면으로 보낼지는 코드가 정합니다. 소모임은 `FCAppActivity.X(Uri)`의 `type` 분기가 그 역할을 합니다. 그래서 딥링크 목록은 매니페스트가 아니라 코드를 봐야 알 수 있고, 앞에서 찾은 40~43·50~52·60~63이 그렇게 코드에서 나온 목록입니다.
+
+## 소모임 5.8.3의 실제 입구
+매니페스트 전체를 확인해 보니, 외부에서 열 수 있는 화면은 **`FCAppActivity` 하나뿐**입니다. 이 화면이 받는 것은 다음과 같습니다.
+- `somoim://com.friendscube.Somoim?...`
+- 카카오 링크 스킴 (위와 같은 `type` 처리 코드로 들어감)
+- `iamport` (결제에서 돌아올 때 사용)
+- `https://somoim.friendscube.com/g/...` (모임 id로 바꿔 `type=63`으로 처리)
+- 다른 앱에서 텍스트 공유 (`text/plain`)
+- 앱 아이콘으로 실행
+
+게시글을 여는 탭 화면(`FCTabBarFragmentActivity`)에는 외부 공개 표시가 없습니다. 그래서 이름을 직접 지정해서 여는 방법도 막혀 있습니다. 결국 게시글로 가려면 `FCAppActivity`의 코드를 통과해야 하는데, 그 코드에는 게시글로 보내는 분기가 없습니다. 이것이 앞에서 "방법이 없다"고 한 근거입니다.
+
+---
+
+## #51
+
+**Prompt**: 모임게시판으로 이동하는 딥링크는 있댔지? 그거라도 적용해줘
+
+**Answer**: 모임 게시판으로 바로 가는 딥링크는 없습니다. 제가 앞에서 확인한 것은 모임 화면(`type=63`)까지였는데, 모임 게시판도 된다는 뜻으로 들리게 말했습니다. 제 설명이 잘못됐습니다. 그래서 코드는 바꾸지 않았습니다.
+
+## 모임 화면의 첫 탭이 정해지는 방식 (`FCEventActivity`)
+모임 화면은 열릴 때 두 가지 값을 보고 첫 탭을 고릅니다. 하나는 푸시 알림 번호이고, 하나는 어디서 왔는지를 나타내는 진입 코드(`fromType`)입니다.
+- **게시판 탭(`T0(1)`)**: 푸시 알림 422·440 등으로 열렸을 때만 이 탭이 열리고, 해당 글도 함께 열립니다.
+- **다른 탭(`T0(3)`)**: 진입 코드가 14·54·150~152일 때 열립니다. 모두 앱 안에서 이동할 때 쓰는 값입니다.
+- **나머지 경우**: 모임 정보 탭(`U0(0)`)이 열립니다.
+
+딥링크 `type=63`은 URL에서 `gid`만 읽고 진입 코드를 **35로 고정**합니다. 그래서 항상 모임 정보 탭이 열리고, URL로 탭을 바꿀 방법이 없습니다. 다른 딥링크 `type`이 넘기는 값(20, 235, 236)도 게시판 탭으로 이어지지 않습니다.
+
+## 결론
+지금 적용한 "앱의 모임 화면 바로 열기"가 현재 앱에서 할 수 있는 한계입니다. 사용자는 모임 화면에서 게시판 탭을 한 번 더 눌러야 합니다.
+
+원하시면 캘린더의 버튼 이름이나 안내 문구를 "모임 화면이 열리면 게시판 탭에서 글을 찾아 주세요"처럼 바꾸는 정도는 할 수 있습니다.
+
+---
+
+## #52
+
+**Prompt**: 지금 구현된 버전은 이상하게 이동해. 위에 말한 딥링크로 그냥 첫화면도 좋으니 이동시켜줘
+
+**Answer**: 이제 버튼이 앱의 모임 첫 화면 딥링크 하나로만 이동합니다. 중간에 다른 곳으로 한 번 더 이동하는 부분은 모두 뺐습니다. 타입 검사, 테스트 198개, eslint는 통과했지만 실제 폰에서는 아직 눌러 보지 못했습니다.
+
+**이상하게 이동했던 이유로 보이는 것**
+- **iOS**: 앱을 연 뒤 1.5초 타이머가 소모임 안내 페이지로 한 번 더 이동시켰고, 그 페이지가 다시 앱을 열려고 했습니다.
+- **Android**: 앱이 없을 때 쓰는 대체 주소로 같은 안내 페이지를 넣어 두었는데, 이것도 비슷하게 꼬일 수 있었습니다.
+
+**바꾼 것**
+- 버튼은 이제 링크만 걸려 있고, 누를 때 도는 스크립트는 없습니다.
+  - iOS: `somoim://com.friendscube.Somoim?type=63&gid={gid}`
+  - Android: `intent://com.friendscube.Somoim?type=63&gid={gid}#Intent;scheme=somoim;…;package=com.friendscube.somoim;end`
+- Android 주소는 소모임 웹이 쓰는 것과 똑같은 형식입니다.
+- 앱이 없으면 Android는 Chrome이 Play 스토어를 열고, iOS는 아무 일도 일어나지 않습니다. 이 동작은 README와 테스트에 반영했습니다.
+
+바뀐 파일은 staging만 했습니다. 폰에서 눌러 봤는데도 이동이 이상하면 어떻게 움직였는지 알려 주세요. 예를 들어 앱이 열리고 바로 다른 화면으로 넘어갔는지, 홈 화면이 열렸는지 같은 것입니다. 앱은 첫 설정(관심사 선택 등)을 마치지 않은 상태면 모임 화면을 바로 열지 않고 링크를 저장만 해 두는데, 그 경우일 수도 있습니다.
+
+---
+
+## #53
+
+**Prompt**: 커밋하고푸쉬해
+
 **Answer**: _(응답 대기 중…)_
 
 ---

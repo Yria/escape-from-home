@@ -230,10 +230,10 @@ describe('groupAppLaunchUrl', () => {
     expect(groupAppLaunchUrl('g-1', 'ios')).toBe('somoim://com.friendscube.Somoim?type=63&gid=g-1')
   })
 
-  it('Android 는 intent 주소에 앱이 없을 때 갈 안내 페이지를 담는다', () => {
-    const url = groupAppLaunchUrl('g-1', 'android')
-    expect(url).toMatch(/^intent:\/\/com\.friendscube\.Somoim\?type=63&gid=g-1#Intent;scheme=somoim;/)
-    expect(url).toContain(';package=com.friendscube.somoim;')
-    expect(url).toContain(`S.browser_fallback_url=${encodeURIComponent('https://www.somoim.co.kr/m/deeplink/g-1')};end`)
+  it('Android 는 소모임 웹과 같은 intent 주소를 쓴다', () => {
+    expect(groupAppLaunchUrl('g-1', 'android')).toBe(
+      'intent://com.friendscube.Somoim?type=63&gid=g-1#Intent;scheme=somoim;action=android.intent.action.VIEW;' +
+        'category=android.intent.category.BROWSABLE;package=com.friendscube.somoim;end',
+    )
   })
 })

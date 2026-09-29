@@ -33,15 +33,13 @@ export const groupAppUrl = (gid: string) => `https://www.somoim.co.kr/m/deeplink
 const APP_GROUP_PATH = (gid: string) => `com.friendscube.Somoim?type=63&gid=${encodeURIComponent(gid)}`
 export type AppPlatform = 'android' | 'ios'
 /**
- * 중간 페이지(`groupAppUrl`) 없이 앱의 모임 화면을 바로 여는 주소.
- * Android 는 앱이 없으면 `browser_fallback_url` 로 `groupAppUrl`(스토어 안내)로 간다.
- * iOS 는 앱이 없을 때 대신 갈 곳을 주소에 담을 수 없어서, 호출하는 쪽에서 `groupAppUrl` 로 넘겨야 한다.
+ * 중간 페이지(`groupAppUrl`) 없이 앱의 모임 화면을 바로 여는 주소 (소모임 웹이 쓰는 것과 같은 형식).
+ * Android 는 앱이 없으면 Chrome 이 package 로 스토어를 연다. iOS 는 앱이 없으면 열리지 않는다.
  */
 export const groupAppLaunchUrl = (gid: string, platform: AppPlatform) =>
   platform === 'android'
     ? `intent://${APP_GROUP_PATH(gid)}#Intent;scheme=somoim;action=android.intent.action.VIEW;` +
-      `category=android.intent.category.BROWSABLE;package=com.friendscube.somoim;` +
-      `S.browser_fallback_url=${encodeURIComponent(groupAppUrl(gid))};end`
+      `category=android.intent.category.BROWSABLE;package=com.friendscube.somoim;end`
     : `somoim://${APP_GROUP_PATH(gid)}`
 export const groupImageUrl = (gid: string) => `${GROUP_IMAGE_CDN}/${gid}.png`
 export const avatarUrl = (wid: string) => `${IMAGE_CDN}/${wid}.png`

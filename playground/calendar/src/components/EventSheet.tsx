@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { groupAppLaunchUrl, type AppPlatform, type HorrorRoles, type ScheduleEvent, type UndatedPost } from '@escape-from-home/somoim'
 import {
   ArrowSquareOutIcon,
@@ -24,23 +24,6 @@ const APP_PLATFORM: AppPlatform | null =
       : /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
         ? 'ios'
         : null
-
-/** iOS 에서 앱이 안 열렸다고 보고 소모임 안내 페이지로 넘어가기까지 기다리는 시간 */
-const IOS_FALLBACK_MS = 1500
-
-/**
- * 소모임 안내 페이지를 거치지 않고 앱의 모임 화면을 바로 연다.
- * Android 는 intent 주소가 앱이 없을 때 스스로 안내 페이지로 가고, iOS 는 앱이 열려 화면이 가려지지 않으면 넘긴다.
- */
-function openGroupInApp(event: ReactMouseEvent<HTMLAnchorElement>, item: SheetItem, platform: AppPlatform) {
-  if (platform !== 'ios') return
-  event.preventDefault()
-  const timer = window.setTimeout(() => {
-    if (document.visibilityState === 'visible') window.location.href = item.appUrl
-  }, IOS_FALLBACK_MS)
-  document.addEventListener('visibilitychange', () => window.clearTimeout(timer), { once: true })
-  window.location.href = groupAppLaunchUrl(item.groupId, platform)
-}
 
 /** 달력의 벙이나 날짜를 못 찾은 글 */
 export type SheetItem = ScheduleEvent | UndatedPost
@@ -158,7 +141,6 @@ function SheetBody({ event: e, onClose }: { event: SheetItem; onClose: () => voi
           <a
             className="btn btn-primary sheet__cta"
             href={groupAppLaunchUrl(e.groupId, APP_PLATFORM)}
-            onClick={(ev) => openGroupInApp(ev, e, APP_PLATFORM)}
           >
             소모임 앱에서 열기
             <DeviceMobileIcon size={16} aria-hidden />

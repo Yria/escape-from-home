@@ -40,5 +40,5 @@ pnpm --filter @escape-from-home/somoim test
 소모임에는 게시글 하나로 가는 주소가 없습니다 (웹 `/{gid}/{글id}` 는 404, `?aid=` 는 무시, 앱 링크 파일 없음).
 그래서 `articleUrl` 은 웹 모임 페이지, `appUrl` 은 소모임의 `/m/deeplink/{gid}`(앱의 모임 화면을 열고 없으면 스토어로)입니다.
 모바일에서는 `groupAppLaunchUrl(groupId, 'android' | 'ios')` 로 그 페이지를 거치지 않고 앱의 모임 화면(`somoim://com.friendscube.Somoim?type=63&gid=`)을 바로 엽니다.
-Android 는 intent 의 `browser_fallback_url` 로, iOS 는 호출하는 쪽의 타이머로 앱이 없을 때 `appUrl` 로 넘깁니다.
+앱이 없으면 Android 는 스토어가 열리고 iOS 는 아무 일도 없습니다 (타이머로 안내 페이지에 넘기면 앱이 열린 뒤에도 페이지가 바뀌어 뺐습니다).
 앱 5.8.3 을 디컴파일해 보니 딥링크 `type` 은 40~43·50~52·60~63 뿐이고 글을 여는 것은 없습니다 (글 id 는 외부에서 부를 수 없는 푸시 알림 화면만 받음).
